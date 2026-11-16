@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radio Race — drive it, then break it</title>
+<style>
+  /* same palette and type as Chris's CEEO activity pages */
+  :root {
+    --bg-color: #f8fafc;
+    --card-bg: #ffffff;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --border: #e2e8f0;
+    --code-bg: #f1f5f9;
+    --radius: 12px;
+    --c: #0ea5e9;   /* Confidentiality */
+    --i: #f59e0b;   /* Integrity */
+    --a: #ef4444;   /* Availability */
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 32px 16px 48px;
+    line-height: 1.5;
+  }
+  main { max-width: 1040px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 32px; }
+  .header h1 { margin: 0; font-size: 2.5rem; color: var(--accent); }
+  .header p { margin: 10px auto 0; color: var(--text-secondary); max-width: 680px; }
+
+  h2.section { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary); margin: 36px 0 14px; }
+
+  .choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .choice {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+  .tag {
+    align-self: flex-start;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent-hover);
+    background: #eff6ff;
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 12px;
+  }
+  .tag.atk { color: #b91c1c; background: #fef2f2; }
+  .choice h2 { margin: 0 0 8px; font-size: 1.3rem; }
+  .choice p { margin: 0 0 12px; color: var(--text-secondary); }
+  .choice ul { margin: 0 0 20px; padding-left: 20px; color: var(--text-primary); }
+  .choice li { margin-bottom: 4px; }
+  .actions { margin-top: auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 8px;
+  }
+  .btn:hover, .btn:focus-visible { background: var(--accent-hover); }
+  .link { color: var(--accent-hover); font-weight: 500; }
+
+  .rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .round {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+  .round.c { border-left-color: var(--c); }
+  .round.i { border-left-color: var(--i); }
+  .round.a { border-left-color: var(--a); }
+  .round h3 { margin: 0 0 4px; font-size: 1.15rem; }
+  .round .who { font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--text-secondary); }
+  .round p { margin: 10px 0 0; color: var(--text-secondary); }
+  .round .lesson { margin-top: 10px; color: var(--text-primary); font-weight: 500; }
+
+  .howto {
+    margin-top: 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .howto h2 { margin: 0 0 12px; font-size: 1.3rem; }
+  .howto ol { margin: 0; padding-left: 22px; }
+  .howto li { margin-bottom: 12px; }
+  .howto p { margin: 16px 0 0; color: var(--text-secondary); }
+  code, pre {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    border-radius: 6px;
+  }
+  code { padding: 1px 5px; font-size: 0.92em; }
+  pre { padding: 10px 12px; margin: 6px 0 0; overflow-x: auto; font-size: 0.9rem; }
+  kbd { font-family: inherit; border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font-size: 0.9em; }
+  footer { text-align: center; color: var(--text-secondary); font-size: 0.85rem; margin-top: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="header">
+    <h1>Radio Race</h1>
+    <p>Three LEGO cars, three wands, one shared radio. Drive your car by waving the wand —
+       then try to hijack someone else's. Each round locks the radio down a little more, and
+       the attacker has to work harder to keep winning.</p>
+  </div>
+
+  <h2 class="section">The devices</h2>
+  <div class="choices">
+    <section class="choice">
+      <span class="tag">Driver</span>
+      <h2>The Wand</h2>
+      <p>Your controller. Hold the button and move the wand to drive; let go and the car stops.</p>
+      <ul>
+        <li>Sends <code>F</code> / <code>T</code> / <code>P</code> over ESP-NOW</li>
+        <li>Button is a dead-man switch — release always means stop</li>
+        <li>An NFC card flips it to the next round (and carries the key)</li>
+      </ul>
+      <div class="actions">
+        <a class="btn" href="https://github.com/peresifrs/tufts/tree/main/ciberseguranca-robotica/micropython/controle">View wand code</a>
+      </div>
+    </section>
+
+    <section class="choice">
+      <span class="tag">The car</span>
+      <h2>The Bridge</h2>
+      <p>Rides on the car. Receives the radio command and drives the LEGO motor over Bluetooth.</p>
+      <ul>
+        <li>ESP-NOW in, BLE out to the LEGO Double Motor</li>
+        <li>One bridge per car</li>
+        <li>The same NFC card turns on decryption for round&nbsp;3</li>
+      </ul>
+      <div class="actions">
+        <a class="btn" href="https://github.com/peresifrs/tufts/tree/main/ciberseguranca-robotica/micropython/robo">View bridge code</a>
+      </div>
+    </section>
+
+    <section class="choice">
+      <span class="tag atk">Attacker · Round 1</span>
+      <h2>Broadcast Spy — M5</h2>
+      <p>A screen-and-buttons spy. It hears every command in the clear and can replay any of them.</p>
+      <ul>
+        <li>Reads the commands and shows them on screen</li>
+        <li>Replay a captured command — the car obeys the impostor</li>
+        <li>Goes blind the moment the radio switches to unicast</li>
+      </ul>
+      <div class="actions">
+        <a class="btn" href="broadcast-spy.html">Flash &amp; use it</a>
+        <a class="link" href="https://github.com/peresifrs/tufts/tree/main/ciberseguranca-robotica/micropython/espiao">View code</a>
+      </div>
+    </section>
+
+    <section class="choice">
+      <span class="tag atk">Attacker · Rounds 2–3</span>
+      <h2>Monitor Spy — ESP32-C6</h2>
+      <p>A promiscuous sniffer driven from a serial terminal. It catches unicast and even encrypted
+         traffic, and replays packets byte-for-byte.</p>
+      <ul>
+        <li>Serial commands to list, pick and replay captured packets</li>
+        <li>Replays verbatim — still works once traffic is encrypted</li>
+        <li>Can't read the command under AES, but can still jam and stall the car</li>
+      </ul>
+      <div class="actions">
+        <a class="btn" href="monitor-spy.html">Open the serial console</a>
+        <a class="link" href="https://github.com/peresifrs/tufts/tree/main/ciberseguranca-robotica/arduino/espiao_monitor_xiao_term">View code</a>
+      </div>
+    </section>
+  </div>
+
+  <h2 class="section">The three rounds</h2>
+  <div class="rounds">
+    <div class="round c">
+      <span class="who">Confidentiality</span>
+      <h3>Round 1 · Broadcast</h3>
+      <p>Everyone hears everything. The broadcast spy reads every command and replays it at will.</p>
+      <p class="lesson">Nobody can keep a secret on an open channel.</p>
+    </div>
+    <div class="round i">
+      <span class="who">Integrity &amp; authenticity</span>
+      <h3>Round 2 · Unicast</h3>
+      <p>Commands now go only to the car's address. The broadcast spy goes blind — attackers need the
+         monitor spy — but a replayed packet still hijacks the car.</p>
+      <p class="lesson">Addressing a message is not the same as securing it.</p>
+    </div>
+    <div class="round a">
+      <span class="who">Availability</span>
+      <h3>Round 3 · Encrypted</h3>
+      <p>The wand encrypts with the key from its NFC card. The spy can no longer read the command —
+         but the verbatim replay still works, and flooding the <code>stop</code> packet stalls the car.</p>
+      <p class="lesson">Encrypting is not authenticating. The fix — HMAC + a sequence number — is the redesign.</p>
+    </div>
+  </div>
+
+  <section class="howto">
+    <h2>Flash the boards</h2>
+    <ol>
+      <li>Wands and bridges run MicroPython; copy the file with <code>mpremote</code>:
+        <pre>mpremote connect &lt;port&gt; fs cp &lt;file&gt;.py :main.py + reset</pre></li>
+      <li>The monitor spy is Arduino/C++ on the XIAO ESP32-C6:
+        <pre>arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 espiao_monitor_xiao_term
+arduino-cli upload -p &lt;port&gt; --fqbn esp32:esp32:XIAO_ESP32C6 espiao_monitor_xiao_term</pre></li>
+      <li>Watch and drive the monitor spy over serial at 115200 baud, or use the
+        <a class="link" href="monitor-spy.html">serial console</a> in the browser.</li>
+    </ol>
+    <p>Full, step-by-step install (libraries, VS Code, board firmware) is in
+       <a class="link" href="https://github.com/peresifrs/tufts/blob/main/ciberseguranca-robotica/INSTALACAO.md">INSTALACAO.md</a>,
+       and the complete study guide is in
+       <a class="link" href="https://github.com/peresifrs/tufts/blob/main/ciberseguranca-robotica/docs/guia-de-estudo-ciberseg-esp32.pdf">docs/</a>.</p>
+  </section>
+
+  <footer>IFRS&nbsp;×&nbsp;Tufts/CEEO · POALab · teaching the CIA triad with a robot race</footer>
+</main>
+</body>
+</html>
