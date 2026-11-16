@@ -152,6 +152,20 @@ See the serial output (the Capsule/XIAO variants print the captures on the seria
 arduino-cli monitor -p <port> -c baudrate=115200
 ```
 
+Terminal commands of `espiao_monitor_xiao_term`: `l` list · `<n>` replay packet n · `<n> xK`
+replay K times (the flood) · `u` last · **`k<n>` tune to channel n (1–13)** · `m` live on/off ·
+`c` clear · `h` help. The browser console at
+[docs/race/monitor-spy.html](../docs/race/monitor-spy.html) drives all of these over Web Serial.
+
+## The race: one channel per car
+
+In the classroom race the three cars run on **different channels — 1, 6 and 11** — so each
+controller↔bridge pair is pinned to its team's channel (set `CANAL` at the top of the controller
+and robot files before flashing). A spy hears and replays on **one channel at a time**, so every
+team must choose which rival to attack: the broadcast M5 picks the channel in its power-on menu,
+and the XIAO monitor spy picks it with `k<n>` (or the channel buttons on the web page). The
+activity site lives in [docs/race/](../docs/race/) (served by GitHub Pages).
+
 ## Encrypted version (confidentiality ≠ authenticity)
 
 Now the controller **encrypts** the command (AES-128) and sends it **unicast** to the robot,

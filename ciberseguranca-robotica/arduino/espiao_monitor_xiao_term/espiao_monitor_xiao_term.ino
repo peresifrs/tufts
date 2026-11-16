@@ -11,6 +11,7 @@
 //   <n>      repete o pacote numero n           ex.: 7
 //   <n> xK   repete o pacote n, K vezes          ex.: 7 x3
 //   u        repete o ultimo pacote capturado
+//   k<n>     sintoniza o canal n (1..13); so ouve/repete no canal atual
 //   m        liga/desliga a impressao ao vivo das capturas (o historico continua)
 //   c        limpa o historico
 //   h        ajuda
@@ -28,7 +29,7 @@
 #include "esp_now.h"
 
 // ====================== CONFIGURACAO ======================
-static const uint8_t CANAL = 1;               // mesmo canal de todas as placas
+static uint8_t CANAL = 1;                     // canal atual (troque pelo terminal: k<n>)
 
 // MAC do ROBO: destino do replay. Descubra com ferramentas/mostra_mac.py no robo.
 static uint8_t ROBO_MAC[6] = { 0x48, 0x27, 0xe2, 0xe3, 0xac, 0x78 };
@@ -157,10 +158,24 @@ static void replay(long id, int vezes) {
   }
 }
 
+// ------------------------------------------------------------------ canal
+static void setCanal(int n) {
+  if (n < 1 || n > 13) { Serial.printf("canal invalido: %d (use 1..13)\n", n); return; }
+  CANAL = (uint8_t)n;
+  esp_wifi_set_channel(CANAL, WIFI_SECOND_CHAN_NONE);
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, ROBO_MAC, 6);
+  peer.channel = CANAL;
+  peer.ifidx   = WIFI_IF_STA;
+  peer.encrypt = false;
+  esp_now_mod_peer(&peer);            // o replay precisa sair no canal novo
+  Serial.printf("canal: %d\n", CANAL);
+}
+
 // ------------------------------------------------------------------ terminal
 static void ajuda() {
   Serial.println("comandos: l=lista  <n>=repete #n  <n> xK=repete K vezes  u=ultimo");
-  Serial.println("          m=liga/desliga ao vivo  c=limpa  h=ajuda   (BOOT = ultimo)");
+  Serial.println("          k<n>=canal 1..13  m=ao vivo  c=limpa  h=ajuda  (BOOT=ultimo)");
 }
 
 static void lista() {
@@ -181,6 +196,7 @@ static void executa(char* s) {
   if (k == 'u') { if (total >= base) replay(total, 1); else Serial.println("(nada capturado)"); return; }
   if (k == 'm') { ao_vivo = !ao_vivo; Serial.printf("ao vivo: %s\n", ao_vivo ? "ligado" : "desligado"); return; }
   if (k == 'c') { base = total + 1; Serial.println("historico limpo"); return; }
+  if (k == 'k') { setCanal((int)strtol(s + 1, nullptr, 10)); return; }
   if (*s == '#') s++;
   if (isdigit((unsigned char)*s)) {
     long id = strtol(s, &s, 10);

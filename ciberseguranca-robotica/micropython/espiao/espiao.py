@@ -15,6 +15,10 @@
 # CONTROLES (na propria placa, sem PC):
 #   Botao A (frente, GPIO37) -> REPLAY do item selecionado (o [>] na tela)
 #   Botao B (lateral, GPIO39)-> move a selecao pelo historico (o mais recente e o padrao)
+#
+# CANAL: ao ligar, a placa mostra um MENU para escolher o canal do alvo
+#   (B = troca entre 1/6/11, A = inicia). Na corrida cada carro fica num canal
+#   diferente, entao o espiao so atrapalha um adversario por vez.
 
 import network
 import espnow
@@ -22,7 +26,8 @@ import time
 from machine import Pin
 from m5 import m5_display
 
-CANAL = 1                 # mesmo canal de todas as placas
+CANAIS = (1, 6, 11)       # canais da corrida (um por carro)
+CANAL = CANAIS[0]         # escolhido no menu da partida (ver escolher_canal)
 BROADCAST = b'\xff' * 6
 HIST_MAX = 8              # quantos comandos capturados a tela guarda
 
@@ -73,7 +78,7 @@ def nome_comando(c):
 def desenhar():
     display.fill(B)
     display.draw_text_centered(2, 'ESPIAO', AMBAR, B, scale=2)
-    display.draw_text_centered(26, 'cap: %d' % total, W, B)
+    display.draw_text_centered(26, 'ch%d  cap:%d' % (CANAL, total), W, B)
 
     if not historico:
         display.draw_text_centered(90, 'ouvindo', W, B)
@@ -119,7 +124,31 @@ def mover_selecao():
     msg_rodape = "A=replay B=sel"
     rodape_cor = W
 
+def escolher_canal():
+    # Menu na partida: B troca o canal (1/6/11), A confirma e inicia.
+    idx = 0
+    def menu():
+        display.fill(B)
+        display.draw_text_centered(2, 'ESPIAO', AMBAR, B, scale=2)
+        display.draw_text_centered(44, 'CANAL', W, B)
+        display.draw_text_centered(78, str(CANAIS[idx]), VERDE, B, scale=3)
+        display.draw_text_centered(150, 'B = troca', W, B)
+        display.draw_text_centered(172, 'A = iniciar', W, B)
+    menu()
+    la, lb = pressed(btn_a), pressed(btn_b)   # estado inicial: nao dispara botao preso
+    while True:
+        a, b = pressed(btn_a), pressed(btn_b)
+        if b and not lb:
+            idx = (idx + 1) % len(CANAIS)
+            menu()
+        if a and not la:
+            return CANAIS[idx]
+        la, lb = a, b
+        time.sleep_ms(15)
+
 # ---------- Laco principal ----------
+CANAL = escolher_canal()
+sta.config(channel=CANAL)     # sintoniza no canal do alvo escolhido
 desenhar()
 last_a, last_b = pressed(btn_a), pressed(btn_b)
 

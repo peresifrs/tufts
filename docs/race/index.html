@@ -125,9 +125,10 @@
 <main>
   <div class="header">
     <h1>Radio Race</h1>
-    <p>Three LEGO cars, three wands, one shared radio. Drive your car by waving the wand —
-       then try to hijack someone else's. Each round locks the radio down a little more, and
-       the attacker has to work harder to keep winning.</p>
+    <p>Three LEGO cars, three wands, each car on its own radio channel. Drive your car by waving
+       the wand — then tune your spy to a rival's channel and try to hijack it. A spy can only sit
+       on one channel at a time, so every team has to choose who to go after. Each round locks the
+       radio down a little more, and the attacker has to work harder to keep winning.</p>
   </div>
 
   <h2 class="section">The devices</h2>
@@ -138,6 +139,7 @@
       <p>Your controller. Hold the button and move the wand to drive; let go and the car stops.</p>
       <ul>
         <li>Sends <code>F</code> / <code>T</code> / <code>P</code> over ESP-NOW</li>
+        <li>Fixed on your team's channel — 1, 6 or 11</li>
         <li>Button is a dead-man switch — release always means stop</li>
         <li>An NFC card flips it to the next round (and carries the key)</li>
       </ul>
@@ -152,7 +154,7 @@
       <p>Rides on the car. Receives the radio command and drives the LEGO motor over Bluetooth.</p>
       <ul>
         <li>ESP-NOW in, BLE out to the LEGO Double Motor</li>
-        <li>One bridge per car</li>
+        <li>One bridge per car, on the team's channel (1, 6 or 11)</li>
         <li>The same NFC card turns on decryption for round&nbsp;3</li>
       </ul>
       <div class="actions">
@@ -165,6 +167,7 @@
       <h2>Broadcast Spy — M5</h2>
       <p>A screen-and-buttons spy. It hears every command in the clear and can replay any of them.</p>
       <ul>
+        <li>Pick your target car's channel (1 / 6 / 11) at power-on</li>
         <li>Reads the commands and shows them on screen</li>
         <li>Replay a captured command — the car obeys the impostor</li>
         <li>Goes blind the moment the radio switches to unicast</li>
@@ -181,6 +184,7 @@
       <p>A promiscuous sniffer driven from a serial terminal. It catches unicast and even encrypted
          traffic, and replays packets byte-for-byte.</p>
       <ul>
+        <li>Tune to any channel (1–13) straight from the web page</li>
         <li>Serial commands to list, pick and replay captured packets</li>
         <li>Replays verbatim — still works once traffic is encrypted</li>
         <li>Can't read the command under AES, but can still jam and stall the car</li>

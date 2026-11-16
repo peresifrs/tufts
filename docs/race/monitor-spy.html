@@ -51,6 +51,9 @@
   .btn:hover:not(:disabled), .btn:focus-visible:not(:disabled) { background: var(--accent-hover); }
   .btn.ghost { background: #eff6ff; color: var(--accent-hover); }
   .btn.ghost:hover:not(:disabled) { background: #dbeafe; }
+  .chbtn.on { background: var(--accent); color: #fff; }
+  .chbar { margin-top: -6px; }
+  .chbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
   .btn.danger { background: var(--danger); }
   .btn.danger:hover:not(:disabled) { background: var(--danger-hover); }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -127,6 +130,19 @@
     <span class="status"><span id="dot" class="dot"></span><span id="statusText">Not connected</span></span>
   </div>
 
+  <div class="toolbar chbar">
+    <span style="font-weight:600">Target channel</span>
+    <button id="ch1"  class="btn ghost chbtn" disabled>1</button>
+    <button id="ch6"  class="btn ghost chbtn" disabled>6</button>
+    <button id="ch11" class="btn ghost chbtn" disabled>11</button>
+    <span class="sep"></span>
+    <label class="ctl" style="color:var(--text-secondary);font-size:0.88rem">or
+      <input type="number" id="chN" min="1" max="13" placeholder="n" style="width:62px;font-family:inherit;font-size:0.9rem;border:1px solid var(--border);border-radius:8px;padding:7px 9px;margin-left:4px">
+    </label>
+    <button id="chSet" class="btn ghost" disabled>Set</button>
+    <span class="status">Listening on <b id="curCh" style="color:var(--text-primary)">—</b> · one channel at a time</span>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <h2>Captured packets <span class="muted" id="pktCount"></span></h2>
@@ -163,6 +179,7 @@
   <div class="panel ref">
     <h2>Command reference</h2>
     <table>
+      <tr><td>k&lt;n&gt;</td><td>Tune the spy to channel n (1–13). You only hear and can only replay on the channel you are on — pick your target car's channel.</td></tr>
       <tr><td>l</td><td>List the captured packets (newest 40).</td></tr>
       <tr><td>&lt;n&gt;</td><td>Replay packet #n once — the car obeys the impostor.</td></tr>
       <tr><td>&lt;n&gt; x&lt;K&gt;</td><td>Replay packet #n K times (1–20, 300&nbsp;ms apart). Flood <code>STOP</code> and the car stalls — the availability attack.</td></tr>
@@ -203,8 +220,14 @@
     $("statusText").textContent = on ? "Connected · 115200" : "Not connected";
     $("connect").classList.toggle("hidden", on);
     $("disconnect").classList.toggle("hidden", !on);
-    ["btnList","btnLast","btnLive","btnClear","btnReplay","btnFlood","btnSend","cmd"]
+    ["btnList","btnLast","btnLive","btnClear","btnReplay","btnFlood","btnSend","cmd",
+     "ch1","ch6","ch11","chN","chSet"]
       .forEach(id => $(id).disabled = !on);
+    if (!on) { $("curCh").textContent = "—"; setActiveCh(null); }
+  }
+
+  function setActiveCh(n) {
+    [1, 6, 11].forEach(c => $("ch" + c).classList.toggle("on", String(c) === String(n)));
   }
 
   async function send(line) {
@@ -250,6 +273,8 @@
       });
       renderTable();
     }
+    const cm = /canal\s*:?\s*(\d+)/i.exec(line);
+    if (cm) { $("curCh").textContent = cm[1]; setActiveCh(cm[1]); }
     const cls = /^REPLAY/i.test(line) ? "rep"
               : /historico limpo|ao vivo|comandos:|ESPIAO|====|----/i.test(line) ? "sys" : null;
     log(line, cls);
@@ -310,6 +335,13 @@
   $("btnLast").addEventListener("click", () => send("u"));
   $("btnLive").addEventListener("click", () => send("m"));
   $("btnClear").addEventListener("click", () => { packets.clear(); renderTable(); send("c"); });
+
+  function setChannel(n) { n = parseInt(n, 10); if (n >= 1 && n <= 13) send("k" + n); }
+  $("ch1").addEventListener("click", () => setChannel(1));
+  $("ch6").addEventListener("click", () => setChannel(6));
+  $("ch11").addEventListener("click", () => setChannel(11));
+  $("chSet").addEventListener("click", () => { const v = $("chN").value.trim(); if (v) setChannel(v); });
+  $("chN").addEventListener("keydown", (e) => { if (e.key === "Enter") $("chSet").click(); });
 
   $("btnReplay").addEventListener("click", () => {
     const n = $("pktN").value.trim();
