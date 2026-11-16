@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+
+# Arduino / build
+build/
+
+# macOS
+.DS_Store
