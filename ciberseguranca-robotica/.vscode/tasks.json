@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    { "id": "porta", "type": "promptString",
+      "description": "Porta serial (ex.: /dev/cu.usbmodem101, COM5)" },
+    { "id": "sketch", "type": "pickString", "description": "Sketch Arduino",
+      "options": [
+        "arduino/espiao_monitor_xiao",
+        "arduino/espiao_monitor_xiao_cif",
+        "arduino/espiao_monitor_capsule",
+        "arduino/espiao_monitor"
+      ] },
+    { "id": "fqbn", "type": "pickString", "description": "Placa (FQBN)",
+      "options": [
+        "esp32:esp32:XIAO_ESP32C6",
+        "esp32:esp32:m5stack_capsule",
+        "esp32:esp32:m5stack_stickc_plus2"
+      ] },
+    { "id": "destino", "type": "pickString", "description": "Destino do main.py",
+      "options": [":main.py", ":/flash/main.py"] }
+  ],
+  "tasks": [
+    { "label": "Listar portas",
+      "type": "shell",
+      "command": "mpremote connect list && arduino-cli board list",
+      "problemMatcher": [] },
+
+    { "label": "Arduino: compilar",
+      "type": "shell",
+      "command": "arduino-cli compile --fqbn ${input:fqbn} ${input:sketch}",
+      "problemMatcher": ["$gcc"], "group": "build" },
+    { "label": "Arduino: compilar e gravar",
+      "type": "shell",
+      "command": "arduino-cli compile --upload -p ${input:porta} --fqbn ${input:fqbn} ${input:sketch}",
+      "problemMatcher": ["$gcc"] },
+    { "label": "Arduino: monitor serial 115200",
+      "type": "shell",
+      "command": "arduino-cli monitor -p ${input:porta} -c baudrate=115200",
+      "isBackground": true, "problemMatcher": [] },
+    { "label": "Arduino: gerar IntelliSense (XIAO)",
+      "type": "shell",
+      "command": "arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 --only-compilation-database --build-path build/xiao arduino/espiao_monitor_xiao",
+      "problemMatcher": [] },
+
+    { "label": "MicroPython: gravar arquivo aberto como main.py",
+      "type": "shell",
+      "command": "mpremote connect ${input:porta} fs cp \"${file}\" ${input:destino} + reset",
+      "problemMatcher": [] },
+    { "label": "MicroPython: rodar arquivo aberto (sem gravar)",
+      "type": "shell",
+      "command": "mpremote connect ${input:porta} run \"${file}\"",
+      "problemMatcher": [] },
+    { "label": "MicroPython: REPL",
+      "type": "shell",
+      "command": "mpremote connect ${input:porta} repl",
+      "problemMatcher": [] },
+    { "label": "MicroPython: preparar robô (aioble + lego_motor)",
+      "type": "shell",
+      "command": "mpremote connect ${input:porta} mip install --target=/flash/libs aioble + fs cp micropython/robo/lego_motor.py :/flash/lego_motor.py",
+      "problemMatcher": [] },
+
+    { "label": "Docs: regerar PDF do guia",
+      "type": "shell",
+      "command": "\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless=new --no-pdf-header-footer --print-to-pdf=docs/guia-de-estudo-ciberseg-esp32.pdf docs/guia-de-estudo.html",
+      "problemMatcher": [] }
+  ]
+}

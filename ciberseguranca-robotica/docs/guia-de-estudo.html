@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ciberseg-esp32 — Guia de estudo</title>
+<style>
+  :root {
+    --tinta: #1d2330;
+    --suave: #5a6375;
+    --linha: #d9dde5;
+    --fundo-cod: #f4f6f9;
+    --acento: #c2410c;
+    --verde: #15803d;
+    --vermelho: #b91c1c;
+    --azul: #1d4ed8;
+    --amarelo: #a16207;
+  }
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--tinta); background: #fff;
+    font-size: 10.5pt; line-height: 1.5;
+    max-width: 820px; margin: 0 auto; padding: 0 16px;
+  }
+  h1 { font-size: 22pt; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 15pt; margin: 28px 0 8px; padding-top: 6px;
+    border-top: 2px solid var(--tinta); break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; margin: 18px 0 6px; break-after: avoid; }
+  p { margin: 6px 0 8px; }
+  .sub { color: var(--suave); margin: 0 0 18px; }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.8pt; }
+  code { background: var(--fundo-cod); padding: 0 3px; border-radius: 3px; }
+  pre {
+    background: var(--fundo-cod); border: 1px solid var(--linha); border-radius: 6px;
+    padding: 8px 10px; overflow-x: auto; line-height: 1.4; break-inside: avoid;
+    white-space: pre-wrap;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 9.5pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--linha); padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #eef1f5; }
+  .caixa {
+    border-left: 4px solid var(--acento); background: #fff7f2;
+    padding: 8px 12px; margin: 10px 0; break-inside: avoid;
+  }
+  .caixa.info { border-color: var(--azul); background: #f2f6ff; }
+  .ok { color: var(--verde); font-weight: 700; }
+  .nao { color: var(--vermelho); font-weight: 700; }
+  .parcial { color: var(--amarelo); font-weight: 700; }
+  figure { margin: 10px 0 14px; break-inside: avoid; }
+  figcaption { color: var(--suave); font-size: 9pt; margin-top: 4px; }
+  svg { width: 100%; height: auto; }
+  ol li, ul li { margin: 3px 0; }
+  .toc { columns: 2; font-size: 9.5pt; margin: 6px 0 0; padding-left: 18px; }
+  .quebra { break-before: page; }
+</style>
+</head>
+<body>
+
+<h1>ciberseg-esp32 — Guia de estudo</h1>
+<p class="sub">Cibersegurança com robótica · IFRS/POALab + Tufts/CEEO · novembro de 2026</p>
+
+<ol class="toc">
+  <li>Visão geral</li>
+  <li>Arquitetura</li>
+  <li>Conceitos</li>
+  <li>Os três modelos de comunicação</li>
+  <li>Os modos do espião</li>
+  <li>Quem lê e quem repete (matriz)</li>
+  <li>Código comentado</li>
+  <li>O caminho de um F</li>
+  <li>Roteiro de aula</li>
+  <li>Como gravar as placas</li>
+  <li>Problemas comuns</li>
+  <li>Próxima versão: as defesas</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>1. Visão geral</h2>
+<p>Um robô LEGO obedece a comandos de rádio. Qualquer um pode ouvir esses comandos ou
+copiá-los, e é isso que torna visíveis os princípios da segurança. O projeto é material de
+cibersegurança para a educação básica.</p>
+
+<p>O sistema tem três ESP32 autônomos, cada um numa bateria ou power bank:</p>
+<ul>
+  <li><strong>Controle</strong> (M5Stamp S3 com dois botões): envia os comandos por ESP-NOW.</li>
+  <li><strong>Robô</strong> (M5Stack Capsule): recebe os comandos e move o motor LEGO por Bluetooth (BLE).</li>
+  <li><strong>Espião</strong> (M5StickC PlusSE com tela, ou XIAO ESP32-C6 em modo monitor): escuta o rádio e repete o que capturou.</li>
+</ul>
+<p>Cada placa roda seu programa sozinha ao ligar. O computador só é usado para gravar as placas.</p>
+
+<p>A sequência didática tem três degraus. Cada degrau corrige o problema do anterior e
+mostra que a correção não basta:</p>
+<ol>
+  <li><strong>Broadcast em texto claro.</strong> O espião lê e repete. Quebra a confidencialidade e a autenticidade.</li>
+  <li><strong>Unicast.</strong> O espião comum fica cego, mas um sniffer em modo monitor lê o ar. <em>Endereçar não é cifrar.</em></li>
+  <li><strong>Unicast cifrado (AES-128).</strong> Só o espião em modo monitor captura. Ele não lê o comando, mas repete os bytes e o robô obedece. <em>Confidencialidade não é autenticidade.</em></li>
+</ol>
+<p>A próxima versão fecha o replay com integridade e autenticação (HMAC, número de sequência e nonce). Veja a seção 12.</p>
+
+<!-- ============================================================ -->
+<h2>2. Arquitetura</h2>
+
+<figure>
+<svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d2330"/>
+    </marker>
+    <marker id="setaR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/>
+    </marker>
+  </defs>
+  <!-- controle -->
+  <rect x="10" y="40" width="170" height="80" rx="10" fill="#eef6ee" stroke="#15803d" stroke-width="2"/>
+  <text x="95" y="66" text-anchor="middle" font-weight="700">CONTROLE</text>
+  <text x="95" y="86" text-anchor="middle">M5Stamp S3</text>
+  <text x="95" y="104" text-anchor="middle" fill="#5a6375">2 botões · LED RGB</text>
+  <!-- robo -->
+  <rect x="300" y="40" width="170" height="80" rx="10" fill="#eef2fb" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="385" y="66" text-anchor="middle" font-weight="700">ROBÔ</text>
+  <text x="385" y="86" text-anchor="middle">M5Stack Capsule</text>
+  <text x="385" y="104" text-anchor="middle" fill="#5a6375">UiFlow2 · aioble</text>
+  <!-- motor -->
+  <rect x="590" y="40" width="160" height="80" rx="10" fill="#fff" stroke="#1d2330" stroke-width="2"/>
+  <text x="670" y="66" text-anchor="middle" font-weight="700">MOTOR LEGO</text>
+  <text x="670" y="86" text-anchor="middle">Double Motor</text>
+  <text x="670" y="104" text-anchor="middle" fill="#5a6375">Connection Card 7551</text>
+  <!-- setas principais -->
+  <line x1="180" y1="80" x2="298" y2="80" stroke="#1d2330" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="239" y="70" text-anchor="middle" font-weight="700">ESP-NOW</text>
+  <text x="239" y="98" text-anchor="middle" fill="#5a6375">canal 1</text>
+  <line x1="470" y1="80" x2="588" y2="80" stroke="#1d2330" stroke-width="2" marker-end="url(#seta)"/>
+  <text x="529" y="70" text-anchor="middle" font-weight="700">BLE</text>
+  <text x="529" y="98" text-anchor="middle" fill="#5a6375">run_tank()</text>
+  <!-- ar -->
+  <path d="M239 104 Q 239 170 300 205" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#setaR)"/>
+  <text x="226" y="170" text-anchor="end" fill="#b91c1c">o rádio vaza para</text>
+  <text x="226" y="186" text-anchor="end" fill="#b91c1c">quem estiver no canal</text>
+  <!-- espiao -->
+  <rect x="300" y="190" width="170" height="90" rx="10" fill="#fdf0ee" stroke="#b91c1c" stroke-width="2"/>
+  <text x="385" y="214" text-anchor="middle" font-weight="700">ESPIÃO</text>
+  <text x="385" y="234" text-anchor="middle">StickC PlusSE (tela)</text>
+  <text x="385" y="252" text-anchor="middle">ou XIAO C6 (monitor)</text>
+  <text x="385" y="270" text-anchor="middle" fill="#5a6375">lê · repete (replay)</text>
+  <!-- replay -->
+  <path d="M440 190 Q 470 150 430 122" fill="none" stroke="#b91c1c" stroke-width="2" marker-end="url(#setaR)"/>
+  <text x="480" y="160" fill="#b91c1c" font-weight="700">replay</text>
+  <text x="480" y="176" fill="#b91c1c">o robô obedece</text>
+</svg>
+<figcaption>Três ESP32, sem computador. O único trecho atacado é o rádio ESP-NOW entre controle e robô;
+o BLE até o motor fica fora do alcance da atividade.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Nó</th><th>Placa</th><th>Linguagem</th><th>Pasta</th></tr>
+  <tr><td>Controle</td><td>M5Stamp S3 + Breakout v2</td><td>MicroPython</td><td><code>micropython/controle/</code></td></tr>
+  <tr><td>Robô</td><td>M5Stack Capsule (UiFlow2, <code>/flash</code>)</td><td>MicroPython</td><td><code>micropython/robo/</code></td></tr>
+  <tr><td>Espião (rádio comum)</td><td>M5StickC PlusSE</td><td>MicroPython</td><td><code>micropython/espiao/</code></td></tr>
+  <tr><td>Espião (modo monitor)</td><td>XIAO ESP32-C6, Capsule ou StickC</td><td>C (Arduino / ESP-IDF)</td><td><code>arduino/</code></td></tr>
+</table>
+<p>Há uma pasta por nó, com o que vai naquela placa. O espião em modo monitor só existe em C porque o
+MicroPython não expõe o modo promíscuo do rádio (<code>esp_wifi_set_promiscuous</code>). Por isso existe a
+pasta irmã <code>arduino/</code>.</p>
+
+<!-- ============================================================ -->
+<h2>3. Conceitos</h2>
+
+<p><strong>ESP-NOW.</strong> É um protocolo da Espressif que manda pacotes curtos (até 250 bytes) direto de um
+ESP32 para outro. Usa o rádio Wi-Fi, mas não precisa de roteador nem de rede. Não há conexão: quem envia só
+dispara o pacote para um endereço MAC. No ar, cada pacote é um <em>action frame</em> 802.11 com o
+identificador da Espressif.</p>
+
+<p><strong>Broadcast.</strong> O endereço <code>ff:ff:ff:ff:ff:ff</code> (no código, <code>BROADCAST = b'\xff' * 6</code>)
+quer dizer "todo mundo". Toda placa no mesmo canal entrega o pacote ao programa. O espião não invade
+nada: só precisa estar ligado.</p>
+
+<p><strong>Unicast.</strong> O pacote vai endereçado a um MAC só (<code>ROBO_MAC</code>). O hardware de rádio das
+outras placas compara o destino com o próprio MAC e <em>descarta</em> o pacote antes de o programa vê-lo.
+Por isso um espião ESP-NOW comum fica cego. Mas o pacote continua no ar, igualzinho, e qualquer
+rádio em modo monitor o lê. No unicast, o robô também confirma o recebimento (ACK), o que o broadcast não faz.</p>
+
+<p><strong>Modo monitor (promíscuo).</strong> É um modo em que o rádio entrega ao programa <em>todo</em> frame do
+canal, de qualquer origem e para qualquer destino. Os sketches de <code>arduino/</code> ligam esse modo e
+filtram os frames ESP-NOW pela assinatura:</p>
+<pre><code>[0..23]   cabeçalho 802.11   addr1 = destino (4..9)   addr2 = origem (10..15)
+[24]      0x7F  categoria "vendor-specific action"
+[25..27]  OUI 18:FE:34 (Espressif)        [28..31] valor aleatório
+[32]      0xDD  elemento vendor-specific   [33] comprimento
+[34..36]  OUI 18:FE:34   [37] 0x04 = ESP-NOW   [38] versão
+[39..]    payload: o nosso "F" (ou os 16 bytes cifrados)</code></pre>
+
+<p><strong>Texto claro.</strong> O comando viaja como o byte <code>b'F'</code>, sem cifra nem assinatura. Quem
+ouve entende, o que quebra a confidencialidade. Quem ouve também pode reenviar uma cópia que o robô aceita,
+o que quebra a autenticidade.</p>
+
+<p><strong>Cifra (AES-128).</strong> Na versão cifrada, o controle monta um bloco de 16 bytes: o comando no
+byte 0 e 15 bytes aleatórios. Depois cifra esse bloco com AES em modo ECB e a <code>CHAVE</code> compartilhada.
+Por causa dos bytes aleatórios, o mesmo <code>F</code> vira uma cifra diferente a cada envio. Assim o espião
+nem consegue agrupar cifras iguais para adivinhar qual é qual. O robô decifra e lê o byte 0.
+<em>Nada</em> no bloco diz se ele é novo ou se já foi usado.</p>
+
+<p><strong>Canal.</strong> O Wi-Fi de 2,4 GHz tem vários canais, e duas placas só se escutam no mesmo canal.
+Todas usam <code>CANAL = 1</code>. Uma placa em outro canal não recebe nada e não mostra nenhum erro.</p>
+
+<p><strong>Economia de energia (<code>PM_NONE</code>).</strong> Por padrão o rádio "cochila" entre transmissões e
+perde pacotes. <code>sta.config(pm=sta.PM_NONE)</code> deixa o rádio sempre acordado.</p>
+
+<p><strong>Buffer de recepção.</strong> <code>e.config(rxbuf=2048)</code> aumenta a fila de pacotes recebidos.
+Precisa vir <em>antes</em> de <code>e.active(True)</code>.</p>
+
+<p><strong>BLE e Connection Card.</strong> O motor LEGO conversa por Bluetooth Low Energy. Ele anuncia o
+número de quatro dígitos impresso no Connection Card do kit (por exemplo, 7551). O robô usa esse número
+(<code>CARD_SERIAL</code>) para achar o motor certo numa sala com vários kits.</p>
+
+<!-- ============================================================ -->
+<h2>4. Os três modelos de comunicação</h2>
+
+<p>O protocolo é sempre de uma letra: <code>F</code> frente, <code>T</code> trás, <code>E</code> esquerda,
+<code>D</code> direita, <code>P</code> parar. O controle de botões só gera <code>F</code>, <code>T</code> e
+<code>P</code>. O robô também aceita <code>E</code> e <code>D</code>. O controle envia só quando o estado
+muda: um comando ao apertar e um <code>P</code> ao soltar. Isso deixa o histórico do espião limpo.</p>
+
+<table>
+  <tr><th>Modelo</th><th>Controle</th><th>Robô</th><th>Destino</th><th>Payload no ar</th></tr>
+  <tr><td><strong>A. Broadcast claro</strong></td><td><code>controle.py</code></td><td><code>robo.py</code></td><td><code>ff:ff:ff:ff:ff:ff</code></td><td><code>46</code> ("F"), 1 byte</td></tr>
+  <tr><td><strong>B. Unicast claro</strong></td><td><code>controle_unicast.py</code></td><td><code>robo.py</code> (não muda)</td><td><code>ROBO_MAC</code></td><td><code>46</code> ("F"), 1 byte</td></tr>
+  <tr><td><strong>C. Unicast cifrado</strong></td><td><code>controle_cripto.py</code></td><td><code>robo_cripto.py</code></td><td><code>ROBO_MAC</code></td><td>16 bytes AES, diferentes a cada envio</td></tr>
+</table>
+
+<h3>A. Broadcast em texto claro</h3>
+<p>Todo mundo no canal recebe o <code>F</code>. O robô obedece a qualquer pacote, venha de onde vier.</p>
+
+<h3>B. Unicast em texto claro</h3>
+<p>Só muda o destino: <code>e.add_peer(ROBO_MAC)</code> e <code>e.send(ROBO_MAC, ...)</code>. O robô <em>não</em>
+precisa mudar, porque no ESP-NOW só é preciso registrar um peer para <em>enviar</em>, não para receber.
+O MAC do robô sai de <code>ferramentas/mostra_mac.py</code>.</p>
+
+<h3>C. Unicast cifrado (AES-128)</h3>
+<p>O destino continua sendo o <code>ROBO_MAC</code>, como no modelo B, mas o payload agora é a cifra.
+Controle e robô formam um <strong>conjunto casado</strong>: os dois trocam juntos e a <code>CHAVE</code> de 16
+bytes tem de ser idêntica nos dois. Um <code>robo_cripto.py</code> que recebe um <code>F</code> em claro
+(1 byte) responde <code>Bloco invalido</code>. Um <code>robo.py</code> que recebe a cifra não reconhece o comando.</p>
+
+<div class="caixa info">O modelo C junta as duas proteções: o unicast cega o espião de rádio comum e a cifra
+esconde o comando. Mesmo assim, o espião em modo monitor captura a cifra no ar e a repete. O
+<code>ROBO_MAC</code> do <code>controle_cripto.py</code> é o mesmo do <code>controle_unicast.py</code>.
+A chave fixa no código é só didática: quem lê o repositório tem a chave.</div>
+
+<!-- ============================================================ -->
+<h2>5. Os modos do espião</h2>
+
+<p>Há dois tipos de espião, com capacidades diferentes:</p>
+<ul>
+  <li><strong>Rádio comum (MicroPython).</strong> Usa <code>e.recv()</code>, a mesma função do robô. Não há
+  diferença técnica entre um receptor legítimo e um bisbilhoteiro. Só enxerga o que é broadcast ou o que é
+  endereçado a ele.</li>
+  <li><strong>Modo monitor (C/Arduino).</strong> Lê todos os frames do canal, inclusive o unicast para o robô.
+  Filtra o que vai para o <code>ROBO_MAC</code> ou para broadcast, e o replay sai em unicast para o robô.</li>
+</ul>
+
+<h3>5.1 Espião Python em broadcast: <code>espiao/espiao.py</code></h3>
+<p>Roda no M5StickC PlusSE, com tela e dois botões. Decodifica o pacote como texto e mostra o último comando
+em destaque (<code>FRENTE</code>, <code>TRAS</code>...) e um histórico de 8 itens. O <strong>botão A</strong> (GPIO37)
+reenvia o item selecionado e o <strong>botão B</strong> (GPIO39) move a seleção. O replay sai em broadcast. Contra
+o modelo B (unicast) a tela fica em <code>ouvindo...</code>. Esse código está funcionando e não deve ser alterado.
+Ele depende da pasta <code>m5/</code>, que está na placa e não no repositório.</p>
+
+<h3>5.2 Espião Python que guarda os bytes: <code>espiao/espiao_cripto.py</code></h3>
+<p>É a mesma placa e a mesma interface, mas guarda os <em>bytes crus</em> e mostra cada pacote em hexadecimal, sem
+tentar decodificar. O botão A reenvia os mesmos bytes. Como é um espião de rádio comum, só recebe broadcast:
+contra o modelo C (unicast cifrado) a tela fica em <code>ouvindo...</code>, igual ao <code>espiao.py</code> contra o
+modelo B. Serve para reforçar que o unicast cega o rádio comum também quando há cifra. Para capturar e repetir
+a cifra é preciso o modo monitor (5.4).</p>
+
+<h3>5.3 Espião em modo monitor que analisa o comando: <code>arduino/espiao_monitor_xiao/</code></h3>
+<p>Roda no XIAO ESP32-C6, sem tela, e mostra o que captura na serial (115200) e no LED. Ele <em>interpreta</em>
+o payload: se for 1 byte conhecido, imprime <code>capturou FRENTE de ac:a7:...</code>. Guarda o último
+<em>movimento</em> (F/T/E/D, ignorando o P) e o botão BOOT o repete. Funciona contra os modelos A e B,
+<strong>mas falha contra a cifra de propósito</strong>: nenhum frame de 16 bytes "parece" um movimento, então a
+serial mostra <code>capturou ? de ...</code> e o BOOT responde <code>replay: nenhum movimento capturado ainda</code>.</p>
+<p>Variantes com a mesma lógica de captura:</p>
+<ul>
+  <li><code>espiao_monitor/</code> (StickC com tela, M5Unified): histórico na tela, A = replay e B = seleção.
+  O replay reenvia os bytes guardados, então também funciona com a cifra (a tela mostra o hex).</li>
+  <li><code>espiao_monitor_capsule/</code> (Capsule, LED RGB + serial): a cor do LED indica o último comando e o
+  botão repete o último frame capturado, qualquer que seja. Com a cifra, o último costuma ser o <code>P</code>.</li>
+</ul>
+
+<h3>5.4 Espião em modo monitor que repete o tráfego cifrado: <code>arduino/espiao_monitor_xiao_cif/</code></h3>
+<p>É a mesma placa, mas repete os bytes <strong>verbatim</strong>, sem tentar entendê-los. Guarda um histórico de 16
+frames e mostra cada um como comando (se for texto claro) ou como hex. O botão BOOT tem dois usos:</p>
+<ul>
+  <li><strong>toque curto:</strong> faz o replay do frame selecionado (começa no último);</li>
+  <li><strong>segurar ~0,6 s:</strong> seleciona o frame anterior.</li>
+</ul>
+<p>Como o controle manda o movimento ao apertar e o <code>P</code> ao soltar, o último frame costuma ser o "parar".
+O aluno segura BOOT uma vez para chegar à cifra do <code>F</code> e toca para repeti-la. Escolhe sem saber
+o que é. <strong>Repetir não exige entender.</strong></p>
+
+<div class="caixa">As duas versões do XIAO são <strong>propositais</strong>. Mostre primeiro a que analisa o comando
+falhando contra a cifra. Pergunte por que ela falhou (a cifra escondeu qual byte é o comando). Depois grave a
+<code>_cif</code> e mostre o robô obedecendo mesmo assim.</div>
+
+<!-- ============================================================ -->
+<h2 class="quebra">6. Quem lê e quem repete</h2>
+<p>Cada célula mostra se o espião consegue <strong>ler</strong> o comando e se consegue fazer um <strong>replay</strong>
+que o robô aceita.</p>
+
+<table>
+  <tr><th>Espião</th><th>A. Broadcast claro</th><th>B. Unicast claro</th><th>C. Unicast cifrado</th></tr>
+  <tr><td><code>espiao.py</code> (MicroPython)</td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="nao">não vê nada</span></td>
+      <td><span class="nao">não vê nada</span></td></tr>
+  <tr><td><code>espiao_cripto.py</code> (MicroPython)</td>
+      <td><span class="parcial">vê o hex (46) · repete</span></td>
+      <td><span class="nao">não vê nada</span></td>
+      <td><span class="nao">não vê nada</span></td></tr>
+  <tr><td><code>espiao_monitor_xiao</code> (analisa)</td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="nao">não lê · não repete</span></td></tr>
+  <tr><td><code>espiao_monitor_xiao_cif</code> (verbatim)</td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="parcial">não lê · <span class="ok">repete</span></span></td></tr>
+  <tr><td><code>espiao_monitor</code> (StickC)</td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="ok">lê · repete</span></td>
+      <td><span class="parcial">não lê · <span class="ok">repete</span></span></td></tr>
+  <tr><td><code>espiao_monitor_capsule</code></td>
+      <td><span class="ok">lê · repete o último</span></td>
+      <td><span class="ok">lê · repete o último</span></td>
+      <td><span class="parcial">não lê · repete o último (em geral o P)</span></td></tr>
+</table>
+
+<p>Leitura da tabela, na ordem da aula:</p>
+<ol>
+  <li><strong>Coluna A:</strong> sem proteção, todos leem e todos repetem.</li>
+  <li><strong>Coluna B:</strong> o unicast cega só o espião de rádio comum. Quem está em modo monitor continua lendo. <em>Endereçar não é cifrar.</em></li>
+  <li><strong>Coluna C:</strong> o rádio comum continua cego e ninguém lê o comando, mas o espião em modo monitor que repete os bytes continua comandando o robô. <em>Confidencialidade não é autenticidade.</em></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>7. Código comentado</h2>
+
+<h3>7.1 Inicialização do rádio (igual em todas as placas MicroPython)</h3>
+<pre><code>sta = network.WLAN(network.STA_IF)   # interface Wi-Fi em modo estação
+sta.active(True)
+sta.disconnect()                     # ESP-NOW não usa roteador
+sta.config(channel=CANAL)            # CANAL = 1 em todas as placas
+sta.config(pm=sta.PM_NONE)           # rádio sempre acordado
+
+e = espnow.ESPNow()
+e.config(rxbuf=2048)                 # fila maior, ANTES de ativar
+e.active(True)</code></pre>
+
+<h3>7.2 Controle: <code>controle.py</code></h3>
+<pre><code>def comando_atual():
+    f, t = apertado(btn_frente), apertado(btn_tras)
+    if f and not t: return "F"
+    if t and not f: return "T"
+    return "P"                       # nenhum (ou os dois) = parar
+
+ultimo = "P"
+while True:
+    cmd = comando_atual()
+    if cmd != ultimo:                # só envia quando o estado MUDA
+        time.sleep_ms(20)            # debounce
+        if comando_atual() == cmd:
+            enviar(cmd)              # e.send(BROADCAST, cmd.encode())
+            ultimo = cmd
+    time.sleep_ms(10)</code></pre>
+<ul>
+  <li>Os pinos ficam em <code>PINO_FRENTE = 4</code> e <code>PINO_TRAS = 1</code> e podem ser descobertos com
+  <code>ferramentas/descobre_pinos.py</code>. Nunca use os GPIO19/20, que são o USB do Stamp S3.</li>
+  <li>O LED RGB (GPIO21) dá o retorno: verde = frente, vermelho = trás, azul = parado. Ele fica num <code>try/except</code> e nunca derruba o programa.</li>
+  <li><code>controle_unicast.py</code> é idêntico, só troca <code>BROADCAST</code> por <code>ROBO_MAC</code>.</li>
+</ul>
+
+<h3>7.3 A cifra: <code>controle_cripto.py</code> e <code>robo_cripto.py</code></h3>
+<pre><code># controle: comando no byte 0 + 15 bytes aleatórios, cifrado em AES-ECB
+def cifrar(cmd):
+    bloco = bytes([ord(cmd[0])]) + os.urandom(15)
+    return cryptolib.aes(CHAVE, MODO_ECB).encrypt(bloco)
+
+e.add_peer(ROBO_MAC)                 # unicast, como no controle_unicast.py
+e.send(ROBO_MAC, cifrar(cmd))        # manda a CIFRA, só para o robô
+
+# robô: só aceita 16 bytes; decifra e devolve o byte 0
+def decifrar(bloco):
+    if bloco is None or len(bloco) != 16:
+        return None
+    claro = cryptolib.aes(CHAVE, MODO_ECB).decrypt(bloco)
+    return chr(claro[0]).upper()</code></pre>
+<p>Repare no que <code>decifrar</code> <em>não</em> confere: quem mandou, quando e se aquele bloco já chegou antes.
+Qualquer bloco de 16 bytes que decifre para um comando válido é obedecido. Essa é a brecha do replay.</p>
+
+<h3>7.4 Robô: <code>robo.py</code> + <code>lego_motor.py</code></h3>
+<pre><code>CMDS = {"F": (VEL, VEL), "T": (-VEL, -VEL),
+        "E": (-VEL, VEL), "D": (VEL, -VEL)}      # (roda esquerda, roda direita)
+
+async def main():
+    motor = LEGOEducationMotor(card_serial=CARD_SERIAL)
+    await motor.connect()                        # scan BLE pelo número do cartão
+    while True:
+        host, msg = e.recv(0)                    # 0 = não bloqueia
+        if msg is not None:
+            texto = msg.decode().strip().upper()
+            await executar_comando(motor, texto[:1])
+        await asyncio.sleep_ms(5)                # deixa o BLE (aioble) trabalhar</code></pre>
+<ul>
+  <li><code>e.recv(0)</code> não bloqueia, porque o laço é <code>asyncio</code> e o BLE precisa de tempo de CPU.</li>
+  <li>Cada comando vira um par de velocidades (<code>VEL = 20</code>). Rodas em sentidos opostos fazem o robô girar no lugar.
+  <code>INVERTER_ESQUERDO</code> e <code>INVERTER_DIREITO</code> corrigem a montagem.</li>
+  <li><code>P</code> chama <code>motor.stop()</code> nos dois motores. O motor gira até chegar outro comando: não há tempo máximo.</li>
+  <li>O robô ignora o <code>host</code>, ou seja, o MAC de origem. Ele obedece ao controle e ao espião sem distinção.</li>
+</ul>
+
+<h3>7.5 Espião em modo monitor (C): o essencial</h3>
+<pre><code>// setup(): rádio no canal, ESP-NOW só para ENVIAR o replay, depois promíscuo
+WiFi.mode(WIFI_STA);  WiFi.disconnect();
+esp_wifi_set_channel(CANAL, WIFI_SECOND_CHAN_NONE);
+esp_now_init();  esp_now_add_peer(&amp;peer_robo);        // destino do replay
+filtro.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;    // ESP-NOW é frame de gerência
+esp_wifi_set_promiscuous_filter(&amp;filtro);
+esp_wifi_set_promiscuous_rx_cb(&amp;sniffer);
+esp_wifi_set_promiscuous(true);
+
+// sniffer(): confere a assinatura ESP-NOW e copia o payload para uma fila
+if (p[24] != 0x7F || p[32] != 0xDD) return;           // vendor action / element
+if (p[34..36] != 18:FE:34 || p[37] != 0x04) return;   // Espressif, tipo ESP-NOW
+if (destino != ROBO_MAC &amp;&amp; destino != BROADCAST) return;
+memcpy(q[head].body, p + 39, p[33] - 5);              // o payload</code></pre>
+<p>O callback roda num contexto sensível: só copia os bytes para uma fila circular e sai. A impressão, o LED
+e o replay acontecem no <code>loop()</code>. O replay é um <code>esp_now_send(ROBO_MAC, body, len)</code> com os bytes guardados.
+A diferença entre <code>_xiao</code> e <code>_xiao_cif</code> está só em <em>quais</em> bytes podem ser reenviados:
+só os que parecem movimento, ou qualquer um.</p>
+
+<!-- ============================================================ -->
+<h2>8. O caminho de um F</h2>
+<ol>
+  <li><strong>Botão → controle.</strong> O GPIO4 vai a 0. <code>comando_atual()</code> devolve <code>F</code>, diferente do último estado, e o debounce de 20 ms confirma.</li>
+  <li><strong>Controle → ar.</strong> <code>e.send(destino, b'F')</code>, ou a cifra de 16 bytes no modelo C. O LED do Stamp fica verde.</li>
+  <li><strong>Ar → robô e espião.</strong> No broadcast (modelo A), os dois recebem por <code>e.recv()</code>. No unicast (modelos B e C), só o robô e quem estiver em modo monitor.</li>
+  <li><strong>Robô → motor.</strong> O robô decodifica (ou decifra), procura <code>CMDS["F"]</code> e chama <code>run_tank()</code> por BLE. Na serial aparece <code>CMD:F (-20, 20)</code>.</li>
+  <li><strong>Soltar o botão.</strong> O mesmo caminho com <code>P</code>, e o motor para.</li>
+  <li><strong>Replay.</strong> O espião reenvia o frame guardado. O robô repete os passos 4 e 5 sem saber que o controle nem foi tocado.</li>
+</ol>
+<p>Cada passo pode ser observado: o LED do controle (1–2), a tela ou a serial do espião (3), a serial do robô
+com <code>mpremote connect &lt;porta&gt; repl</code> (4) e o motor girando. É assim que se acha onde a cadeia quebrou.</p>
+
+<!-- ============================================================ -->
+<h2>9. Roteiro de aula</h2>
+
+<h3>Passo 1. Broadcast: o espião lê e repete</h3>
+<p>Placas: <code>controle.py</code>, <code>robo.py</code> e <code>espiao.py</code> no StickC.</p>
+<ol>
+  <li>Ligue o motor (fora do carregador) e o robô, e espere a conexão BLE. Depois ligue o espião e o controle.</li>
+  <li>Aperte FRENTE. O robô anda e o espião mostra <code>FRENTE</code>. <em>Confidencialidade quebrada.</em></li>
+  <li>Solte o botão. No espião, selecione <code>FRENTE</code> com B e aperte A: o robô anda sozinho. <em>Autenticidade quebrada.</em></li>
+</ol>
+
+<h3>Passo 2. Unicast: endereçar não é cifrar</h3>
+<p>Troque só o controle para <code>controle_unicast.py</code>. O robô continua com <code>robo.py</code>.</p>
+<ol>
+  <li>O StickC (<code>espiao.py</code>) fica em <code>ouvindo...</code>, e a turma acha que o problema foi resolvido.</li>
+  <li>Ligue o XIAO com <code>espiao_monitor_xiao</code> e abra a serial: <code>[1] capturou FRENTE de ...</code>.</li>
+  <li>Aperte BOOT: <code>REPLAY -&gt; FRENTE (ok)</code> e o robô anda. O pacote estava no ar o tempo todo.</li>
+</ol>
+
+<h3>Passo 3. Cifra: confidencialidade não é autenticidade</h3>
+<p>Troque o conjunto: <code>controle_cripto.py</code> + <code>robo_cripto.py</code> (mesma <code>CHAVE</code>). O envio continua em unicast para o robô.</p>
+<ol>
+  <li><strong>O espião que analisa o comando falha.</strong> Com o XIAO ainda em <code>espiao_monitor_xiao</code>, a serial mostra
+  <code>capturou ? de ...</code> e o BOOT responde <code>nenhum movimento capturado</code>. Pergunte à turma por quê.</li>
+  <li><strong>O espião que repete verbatim funciona.</strong> Grave <code>espiao_monitor_xiao_cif</code>. Aperte e solte FRENTE no controle.
+  No XIAO, segure BOOT (seleciona o frame anterior, a cifra do <code>F</code>), solte e depois toque BOOT. O robô anda.
+  A serial mostra <code>REPLAY [n] 3fa1c9... -&gt; ok</code>.</li>
+  <li>Opcional: o StickC com <code>espiao_cripto.py</code> fica em <code>ouvindo...</code>, porque o tráfego é unicast. Só o modo monitor alcança a cifra.</li>
+</ol>
+
+<h3>Fechamento</h3>
+<p>Pergunte à turma o que o robô precisaria saber para recusar o replay. Ele precisaria saber que o
+comando é novo e que veio de quem conhece a chave. Isso leva à próxima versão (seção 12).</p>
+
+<!-- ============================================================ -->
+<h2>10. Como gravar as placas</h2>
+
+<p><strong>MicroPython, com <code>mpremote</code>:</strong></p>
+<pre><code>cd ~/Documents/ifrs/VSCode/ciberseg-esp32
+mpremote connect list                       # descobre as portas
+
+# Robô (Capsule, UiFlow2: grava em /flash)
+mpremote connect &lt;porta-robo&gt; mip install --target=/flash/libs aioble    # uma vez
+mpremote connect &lt;porta-robo&gt; fs cp micropython/robo/lego_motor.py :/flash/lego_motor.py
+mpremote connect &lt;porta-robo&gt; fs cp micropython/robo/robo.py        :/flash/main.py
+#   cifrado: micropython/robo/robo_cripto.py :/flash/main.py
+
+# Controle (Stamp S3) — escolha a versão
+mpremote connect &lt;porta-controle&gt; fs cp micropython/controle/controle.py         :main.py + reset
+mpremote connect &lt;porta-controle&gt; fs cp micropython/controle/controle_unicast.py :main.py + reset
+mpremote connect &lt;porta-controle&gt; fs cp micropython/controle/controle_cripto.py  :main.py + reset
+
+# Espião MicroPython (StickC PlusSE)
+mpremote connect &lt;porta-espiao&gt; fs cp micropython/espiao/espiao.py        :main.py + reset
+mpremote connect &lt;porta-espiao&gt; fs cp micropython/espiao/espiao_cripto.py :main.py + reset</code></pre>
+
+<p>Configuração antes de gravar:</p>
+<ul>
+  <li><code>CARD_SERIAL</code> em <code>robo.py</code> e <code>robo_cripto.py</code>: o número do Connection Card.</li>
+  <li><code>ROBO_MAC</code> em <code>controle_unicast.py</code>, <code>controle_cripto.py</code> e em todos os <code>.ino</code>: o resultado de <code>mpremote connect &lt;porta-robo&gt; run micropython/ferramentas/mostra_mac.py</code>.</li>
+  <li><code>CHAVE</code>: a mesma nos dois arquivos <code>*_cripto.py</code>.</li>
+  <li><code>PINO_FRENTE</code>, <code>PINO_TRAS</code> e <code>ATIVO_EM</code> no controle, descobertos com <code>ferramentas/descobre_pinos.py</code>.</li>
+</ul>
+
+<p><strong>Espião em modo monitor, com <code>arduino-cli</code>:</strong></p>
+<pre><code>arduino-cli core install esp32:esp32
+arduino-cli lib install M5Unified        # só para as variantes M5 (StickC, Capsule)
+
+arduino-cli upload -p &lt;porta-xiao&gt; --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao
+arduino-cli upload -p &lt;porta-xiao&gt; --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao_cif
+arduino-cli monitor -p &lt;porta-xiao&gt; -c baudrate=115200</code></pre>
+<p>As duas versões do XIAO usam a mesma placa e o mesmo FQBN. Para alternar, troque só a pasta. Se o upload
+travar em <code>Connecting...</code>, segure BOOT, aperte RESET, solte BOOT e grave de novo. Outras placas:
+<code>esp32:esp32:m5stack_stickc_plus2</code> e <code>esp32:esp32:m5stack_capsule</code>.</p>
+
+<!-- ============================================================ -->
+<h2>11. Problemas comuns</h2>
+<table>
+  <tr><th>Sintoma</th><th>Causa provável</th></tr>
+  <tr><td><code>could not enter raw repl</code></td><td>A porta está ocupada (Thonny, REPL, <code>arduino-cli monitor</code>). Uma porta só aceita um programa por vez.</td></tr>
+  <tr><td>O robô não acha o motor</td><td><code>CARD_SERIAL</code> errado, ou o motor está no carregador (não funciona carregando).</td></tr>
+  <tr><td>Erro de versão RPC no motor</td><td>Atualize o firmware do motor em code.legoeducation.com.</td></tr>
+  <tr><td>Robô cifrado: <code>Bloco invalido</code></td><td>O controle está em claro. Troque os dois arquivos juntos.</td></tr>
+  <tr><td>Robô não reage ao controle unicast ou cifrado</td><td><code>ROBO_MAC</code> errado no controle. Confira com <code>mostra_mac.py</code>.</td></tr>
+  <tr><td>Robô cifrado: <code>Comando desconhecido</code></td><td>A <code>CHAVE</code> é diferente entre o controle e o robô.</td></tr>
+  <tr><td>O espião monitor não captura o unicast</td><td><code>ROBO_MAC</code> errado no <code>.ino</code> (o filtro descarta), ou o canal não é o 1.</td></tr>
+  <tr><td>O replay do monitor não move o robô</td><td>O frame repetido era o <code>P</code>. Selecione o anterior.</td></tr>
+  <tr><td>A placa não aparece no <code>mpremote connect list</code></td><td>O cabo USB é só de carga. Use um cabo de dados.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>12. Próxima versão: as defesas</h2>
+<p>A versão cifrada mostra que esconder o conteúdo não basta. Para o robô recusar o replay, a mensagem precisa
+provar duas coisas:</p>
+<ul>
+  <li><strong>Que veio de quem tem a chave</strong> (autenticidade e integridade). Um <em>HMAC</em> sobre a mensagem
+  permite ao robô recalcular e comparar. Um bloco alterado ou forjado não confere.</li>
+  <li><strong>Que é nova</strong> (proteção contra replay). Um <em>número de sequência</em> que só cresce, ou um
+  <em>nonce</em> desafiado pelo robô, faz o robô recusar o que já viu.</li>
+</ul>
+<p>Com isso, o espião <code>_cif</code> ainda captura e ainda reenvia, mas o robô não obedece mais. Depois vêm
+integridade e MITM, e disponibilidade (inundar o canal), que continuam em aberto.</p>
+
+</body>
+</html>
