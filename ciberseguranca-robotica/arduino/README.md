@@ -9,7 +9,8 @@ arduino/
 ├── espiao_monitor/espiao_monitor.ino                  # COM TELA (M5StickC PlusSE etc.)
 ├── espiao_monitor_capsule/espiao_monitor_capsule.ino  # M5 Capsule: LED RGB + Serial
 ├── espiao_monitor_xiao/espiao_monitor_xiao.ino        # XIAO: LÊ o comando (falha na cifra)
-└── espiao_monitor_xiao_cif/espiao_monitor_xiao_cif.ino # XIAO: REPETE verbatim (serve na cifra)
+├── espiao_monitor_xiao_cif/espiao_monitor_xiao_cif.ino # XIAO: REPETE verbatim (serve na cifra)
+└── espiao_monitor_xiao_term/espiao_monitor_xiao_term.ino # XIAO: terminal, escolhe o replay (versão 2)
 ```
 
 > **As duas versões do XIAO são propositais (didático).** `espiao_monitor_xiao`
@@ -31,6 +32,7 @@ diferença — o broadcast cega com o unicast, o monitor continua capturando.
 | `espiao_monitor_capsule` | M5 Capsule (sem tela) | `esp32:esp32:m5stack_capsule` | LED RGB (cor = último comando) + Serial; botão = replay do último |
 | `espiao_monitor_xiao` | XIAO ESP32-C6 (sem tela) | `esp32:esp32:XIAO_ESP32C6` | Serial + LED; BOOT = replay do último **movimento** (F/T/E/D). Texto claro; **falha na cifra** (didático) |
 | `espiao_monitor_xiao_cif` | XIAO ESP32-C6 (sem tela) | `esp32:esp32:XIAO_ESP32C6` | Serial + LED; BOOT: toque = replay do selecionado, segurar = frame anterior. Repete **verbatim** (funciona na cifra) |
+| `espiao_monitor_xiao_term` | XIAO ESP32-C6 (sem tela) | `esp32:esp32:XIAO_ESP32C6` | **Controle pelo terminal**: histórico numerado (BCAST/UNI, MAC, RSSI, hex) e `<n>` repete o pacote n (verbatim; serve em claro, unicast e cifra). `l` lista, `u` último, `7 x3` repete 3×, `m` pausa ao vivo, `c` limpa |
 
 > **Gravar o XIAO é o caminho mais fácil.** BOOT/RESET acessíveis e auto-reset
 > costuma funcionar. Se o upload travar no "Connecting...": segure **BOOT**,
@@ -116,10 +118,20 @@ REPLAY -> FRENTE (ok)
 
 1. Controle rodando `controle_unicast.py`, robô rodando `robo.py`.
 2. Mostre que um espião ESP-NOW comum (o `espiao.py` antigo) **não vê mais** o unicast.
-3. Grave o sketch monitor (ex.: `espiao_monitor` na StickC): volta a capturar.
-4. StickC: botão **A** = replay do item selecionado; **B** = move a seleção.
+3. No XIAO C6 com `espiao_monitor_xiao_term`, abra o terminal (tarefa **Espião XIAO:
+   terminal** no VS Code, ou `arduino-cli monitor -p <porta-xiao> -c baudrate=115200`).
+   Aperte e solte FRENTE: aparecem `#1 ... UNI ... FRENTE 46` e `#2 ... UNI ... PARAR 50`.
+4. Digite `1` + Enter: `REPLAY #1 -> robo FRENTE (ok)` e o robô anda. `l` lista,
+   `1 x3` repete 3×, `u` repete o último, `m` pausa a impressão ao vivo.
 
-### B) Cifra: o espião captura mas não sabe repetir — até repetir sem entender
+### B) Cifra: repetir sem entender (versão 3, padrão)
+
+Controle com `controle_cripto.py`, robô com `robo_cripto.py`, XIAO **continua** com
+`espiao_monitor_xiao_term` (não regrava). No terminal os pacotes aparecem como
+`#1 ... UNI ... 16B  ? (ilegivel)  3fa1c9...`. Digite `1` + Enter: o robô anda.
+O espião não sabe o comando, mas repete os bytes e o robô decifra e obedece.
+
+### B') Alternativa: o espião que lê falha, o que repete funciona
 
 Pré: controle com `controle_cripto.py` (cifra + **unicast** para `ROBO_MAC`) e robô com
 `robo_cripto.py` (mesma `CHAVE`). O tráfego é unicast: o espião MicroPython não vê nada,

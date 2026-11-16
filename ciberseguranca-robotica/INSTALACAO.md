@@ -318,6 +318,7 @@ MicroPython does not expose `esp_wifi_set_promiscuous`; that is why this node is
 | [espiao_monitor_capsule/](arduino/espiao_monitor_capsule/espiao_monitor_capsule.ino) | Capsule — `esp32:esp32:m5stack_capsule` | RGB LED (GPIO21) + Serial; button = replay | M5Unified |
 | [espiao_monitor_xiao/](arduino/espiao_monitor_xiao/espiao_monitor_xiao.ino) | XIAO C6 — `esp32:esp32:XIAO_ESP32C6` | Serial + LED; BOOT replays the last **movement**. **Fails against the cipher** (on purpose) | core only |
 | [espiao_monitor_xiao_cif/](arduino/espiao_monitor_xiao_cif/espiao_monitor_xiao_cif.ino) | XIAO C6 — `esp32:esp32:XIAO_ESP32C6` | Serial + LED; BOOT tap = **verbatim** replay, hold = previous frame. Works against the cipher | core only |
+| [espiao_monitor_xiao_term/](arduino/espiao_monitor_xiao_term/espiao_monitor_xiao_term.ino) | XIAO C6 — `esp32:esp32:XIAO_ESP32C6` | **terminal-controlled** (Serial 115200): numbered history (`UNI`/`BCAST`, MAC, RSSI, hex), replay the chosen packet (`<n>`, `<n> xK`, `u`, `l`); BOOT = replay last. Verbatim, so it works clear, unicast and encrypted. **The recommended spy for stages 2–4** | core only |
 
 They all include `WiFi.h`, `esp_wifi.h`, `esp_now.h` (from the esp32 core) and have
 `CANAL = 1` and `ROBO_MAC[6]` to fill in at the top.
@@ -410,22 +411,27 @@ mpremote connect <spy-port> fs cp micropython/espiao/espiao.py :main.py + reset
 2. Compile and flash:
 
 ```bash
-arduino-cli compile --upload -p <xiao-port> --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao
+arduino-cli compile --upload -p <xiao-port> --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao_term
 arduino-cli monitor  -p <xiao-port> -c baudrate=115200
 ```
 
-For the version that replays the cipher, just swap the folder: `arduino/espiao_monitor_xiao_cif`.
+`espiao_monitor_xiao_term` is the **recommended** one: it works for stages 2, 3 and 4 without
+re-flashing. In the monitor, type `h` for help, `l` to list the captures, and `<n>` / `<n> xK` to
+replay a packet (the last is the availability flood). The older `espiao_monitor_xiao` (reads the
+command, fails against the cipher) and `espiao_monitor_xiao_cif` (replays verbatim, button-driven)
+stay in the repo for the lesson that contrasts them.
 
 For the StickC or the Capsule, swap the FQBN and folder (see table 5.2). Flashing an Arduino
 sketch **erases the MicroPython** on the board; to go back, re-flash UiFlow2 with M5Burner.
 
 ### 7.5 Switch lesson stages
 
-| Stage | Controller | Robot | Spy that captures |
-|-------|----------|------|---------------------|
-| 1. Broadcast, clear | `controle.py` | `robo.py` | `espiao.py` (StickC) and the monitor |
-| 2. Unicast, clear | `controle_unicast.py` | `robo.py` | only the monitor (`espiao_monitor_xiao`) |
-| 3. Unicast, encrypted | `controle_cripto.py` | `robo_cripto.py` | monitor `espiao_monitor_xiao` **fails**; `espiao_monitor_xiao_cif` **replays** |
+| Stage (CIA leg) | Controller | Robot | Spy that captures / replays |
+|-----------------|-----------|-------|------------------------------|
+| 1. Broadcast, clear (C) | `controle.py` | `robo.py` | `espiao.py` (StickC) or any monitor sketch |
+| 2. Unicast, clear (C) | `controle_unicast.py` | `robo.py` | monitor only — `espiao_monitor_xiao_term` (terminal) |
+| 3. Unicast, encrypted (C/I) | `controle_cripto.py` | `robo_cripto.py` | `espiao_monitor_xiao_term` replays the ciphertext verbatim; `espiao_monitor_xiao` **fails** (it tries to read) |
+| 4. Availability (A) | any of the above | — | on the terminal spy, replay the **stop** packet K times (`<n> xK`, e.g. `7 x10`) → the robot stutters/freezes (DoS) |
 
 ```bash
 mpremote connect <controller-port> fs cp micropython/controle/controle_cripto.py :main.py + reset
@@ -433,6 +439,15 @@ mpremote connect <robot-port>      fs cp micropython/robo/robo_cripto.py        
 ```
 
 To go back to clear text, re-flash `controle.py` (or `controle_unicast.py`) and `robo.py`.
+
+**Availability attack (stage 4).** On the `espiao_monitor_xiao_term` terminal, list the captures
+(`l`), find the **stop** packet (in the clear versions it shows as `PARAR`; encrypted, it is the
+`? (ilegivel)` frame captured right when the robot stopped) and replay it K times, e.g. `7 x10`.
+The robot keeps being told to stop, so it **stutters / freezes** while the controller is trying to
+drive it — a denial of service. No key needed: encryption hid the command's content, not the fact
+that the robot stopped. The defense (HMAC + a sequence number/nonce) also kills this, because the
+robot rejects the repeated frames; but a raw channel flood cannot be fully prevented — **availability
+is the hardest leg of the triad**.
 
 ### 7.6 Demo
 

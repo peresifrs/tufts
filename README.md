@@ -1,17 +1,19 @@
 # IFRS × Tufts/CEEO
 
-Códigos desenvolvidos durante a mobilidade de **André Peres** (IFRS Campus Porto Alegre / POALab) no **Center for Engineering Education and Outreach (CEEO)**, Tufts University — nov/2026.
+Code developed during **André Peres**'s mobility (IFRS Campus Porto Alegre / POALab) at the
+**Center for Engineering Education and Outreach (CEEO)**, Tufts University — Nov/2026.
 
-Projeto maior: *Base tecnológica para a formação técnica, ética e cidadã em inteligência artificial, segurança computacional e privacidade na educação básica.*
+Part of the larger project: *Technological foundation for technical, ethical and civic education
+in artificial intelligence, computer security and privacy in basic education.*
 
-## Projetos
+## Projects
 
-| Pasta | O que é |
-|-------|---------|
-| [`ciberseguranca-robotica/`](ciberseguranca-robotica/) | Ensino dos princípios de segurança (Confidencialidade, Integridade, Disponibilidade) com robótica: comandos trafegam por rádio **ESP-NOW** entre placas **ESP32** e acionam um **motor LEGO Education** por BLE, enquanto um **espião** captura e repete as mensagens. Três experimentos: *broadcast* → *unicast* → *unicast cifrado (AES)*. |
+| Folder | What it is |
+|--------|------------|
+| [`ciberseguranca-robotica/`](ciberseguranca-robotica/) | Teaching the security principles — **Confidentiality, Integrity and Availability (CIA)** — with robotics: movement commands travel over an **ESP-NOW** radio between **ESP32** boards and drive a **LEGO Education motor** over BLE, while a **spy** captures and replays. Three stages that complete the CIA triad: *broadcast* → *unicast* → *encrypted (AES)*, with a replay-flood of the "stop" command as the availability (DoS) attack. |
 
-*Espaço reservado para os demais códigos desenvolvidos na Tufts (novas pastas irmãs a esta).*
+*Space reserved for the other code developed at Tufts (new sibling folders).*
 
-## Licença
+## License
 
-Material didático de uso livre para fins educacionais. Veja cada projeto para detalhes.
+Educational material, free to use for educational purposes. See each project for details.
