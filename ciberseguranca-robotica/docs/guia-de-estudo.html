@@ -275,9 +275,21 @@ Ele depende da pasta <code>m5/</code>, que está na placa e não no repositório
 tentar decodificar. O botão A reenvia os mesmos bytes. Como é um espião de rádio comum, só recebe broadcast:
 contra o modelo C (unicast cifrado) a tela fica em <code>ouvindo...</code>, igual ao <code>espiao.py</code> contra o
 modelo B. Serve para reforçar que o unicast cega o rádio comum também quando há cifra. Para capturar e repetir
-a cifra é preciso o modo monitor (5.4).</p>
+a cifra é preciso o modo monitor (5.3 ou 5.5).</p>
 
-<h3>5.3 Espião em modo monitor que analisa o comando: <code>arduino/espiao_monitor_xiao/</code></h3>
+<h3>5.3 Espião em modo monitor pelo terminal: <code>arduino/espiao_monitor_xiao_term/</code> (versões 2 e 3)</h3>
+<p>É o espião das versões 2 (unicast) e 3 (cifra). Roda no XIAO ESP32-C6 e é controlado <strong>pelo terminal</strong> (serial
+115200, ou a tarefa <em>Espião XIAO: terminal</em> no VS Code). Cada frame capturado aparece numerado, com o tipo
+(<code>BCAST</code> ou <code>UNI</code>), o MAC de origem, o RSSI, o tamanho, o comando lido e os bytes em hex:</p>
+<pre><code>#3      12.4s  UNI    de ac:a7:04:03:45:70  -42dBm   1B  FRENTE        46
+#4      13.1s  UNI    de ac:a7:04:03:45:70  -41dBm   1B  PARAR         50</code></pre>
+<p>O aluno escolhe <em>qual</em> pacote repetir: <code>l</code> lista o histórico (40 últimos), <code>3</code> repete o
+#3 para o robô, <code>3 x5</code> repete cinco vezes, <code>u</code> repete o último, <code>m</code> pausa a impressão
+ao vivo, <code>c</code> limpa e <code>h</code> mostra a ajuda. O BOOT repete o último. A coluna <code>UNI</code> torna visível
+que o pacote era endereçado só ao robô e mesmo assim foi lido. O replay é verbatim, então também funciona
+contra a cifra (a coluna do comando mostra <code>? (ilegivel)</code>).</p>
+
+<h3>5.4 Espião em modo monitor que analisa o comando: <code>arduino/espiao_monitor_xiao/</code></h3>
 <p>Roda no XIAO ESP32-C6, sem tela, e mostra o que captura na serial (115200) e no LED. Ele <em>interpreta</em>
 o payload: se for 1 byte conhecido, imprime <code>capturou FRENTE de ac:a7:...</code>. Guarda o último
 <em>movimento</em> (F/T/E/D, ignorando o P) e o botão BOOT o repete. Funciona contra os modelos A e B,
@@ -291,7 +303,7 @@ serial mostra <code>capturou ? de ...</code> e o BOOT responde <code>replay: nen
   botão repete o último frame capturado, qualquer que seja. Com a cifra, o último costuma ser o <code>P</code>.</li>
 </ul>
 
-<h3>5.4 Espião em modo monitor que repete o tráfego cifrado: <code>arduino/espiao_monitor_xiao_cif/</code></h3>
+<h3>5.5 Espião em modo monitor que repete o tráfego cifrado: <code>arduino/espiao_monitor_xiao_cif/</code></h3>
 <p>É a mesma placa, mas repete os bytes <strong>verbatim</strong>, sem tentar entendê-los. Guarda um histórico de 16
 frames e mostra cada um como comando (se for texto claro) ou como hex. O botão BOOT tem dois usos:</p>
 <ul>
@@ -470,19 +482,28 @@ com <code>mpremote connect &lt;porta&gt; repl</code> (4) e o motor girando. É a
 <p>Troque só o controle para <code>controle_unicast.py</code>. O robô continua com <code>robo.py</code>.</p>
 <ol>
   <li>O StickC (<code>espiao.py</code>) fica em <code>ouvindo...</code>, e a turma acha que o problema foi resolvido.</li>
-  <li>Ligue o XIAO com <code>espiao_monitor_xiao</code> e abra a serial: <code>[1] capturou FRENTE de ...</code>.</li>
-  <li>Aperte BOOT: <code>REPLAY -&gt; FRENTE (ok)</code> e o robô anda. O pacote estava no ar o tempo todo.</li>
+  <li>Ligue o XIAO com <code>espiao_monitor_xiao_term</code> e abra o terminal (tarefa <em>Espião XIAO: terminal</em> no VS Code,
+  ou <code>arduino-cli monitor -p &lt;porta-xiao&gt; -c baudrate=115200</code>). Aperte e solte FRENTE: aparecem
+  <code>#1 ... UNI ... FRENTE 46</code> e <code>#2 ... UNI ... PARAR 50</code>. O <code>UNI</code> mostra que era só para o robô.</li>
+  <li>Digite <code>1</code> e Enter: <code>REPLAY #1 -&gt; robo FRENTE (ok)</code> e o robô anda. O pacote estava no ar o tempo todo.
+  Experimente <code>1 x3</code>, ou <code>l</code> para a turma escolher no histórico.</li>
 </ol>
 
 <h3>Passo 3. Cifra: confidencialidade não é autenticidade</h3>
-<p>Troque o conjunto: <code>controle_cripto.py</code> + <code>robo_cripto.py</code> (mesma <code>CHAVE</code>). O envio continua em unicast para o robô.</p>
+<p>Troque o conjunto: <code>controle_cripto.py</code> + <code>robo_cripto.py</code> (mesma <code>CHAVE</code>). O envio continua em
+unicast para o robô. O XIAO <strong>continua</strong> com <code>espiao_monitor_xiao_term</code>, o mesmo terminal do Passo 2.</p>
 <ol>
-  <li><strong>O espião que analisa o comando falha.</strong> Com o XIAO ainda em <code>espiao_monitor_xiao</code>, a serial mostra
-  <code>capturou ? de ...</code> e o BOOT responde <code>nenhum movimento capturado</code>. Pergunte à turma por quê.</li>
-  <li><strong>O espião que repete verbatim funciona.</strong> Grave <code>espiao_monitor_xiao_cif</code>. Aperte e solte FRENTE no controle.
-  No XIAO, segure BOOT (seleciona o frame anterior, a cifra do <code>F</code>), solte e depois toque BOOT. O robô anda.
-  A serial mostra <code>REPLAY [n] 3fa1c9... -&gt; ok</code>.</li>
-  <li>Opcional: o StickC com <code>espiao_cripto.py</code> fica em <code>ouvindo...</code>, porque o tráfego é unicast. Só o modo monitor alcança a cifra.</li>
+  <li>Aperte e solte FRENTE. O terminal mostra <code>#1 ... UNI ... 16B ? (ilegivel) 3fa1c9...</code> e
+  <code>#2 ... UNI ... 16B ? (ilegivel) 8e07d2...</code>. <em>Confidencialidade preservada:</em> o espião não sabe qual
+  é o comando.</li>
+  <li>Pergunte à turma: qual dos dois é o <code>F</code>? Os bytes não ajudam: o controle completa o bloco com 15 bytes
+  aleatórios, então cada FRENTE gera uma cifra diferente. Mas a <em>ordem</em> entrega: aperta antes de soltar, então
+  o primeiro de cada par é o movimento. É análise de tráfego, sem decifrar nada.</li>
+  <li>Digite <code>1</code> e Enter: <code>REPLAY #1 -&gt; robo ? (ilegivel) (ok)</code> e o <strong>robô anda</strong>. O robô
+  decifrou a cifra verdadeira e obedeceu. <em>Autenticidade quebrada:</em> repetir não exige entender.</li>
+  <li>Opcional: o StickC com <code>espiao_cripto.py</code> fica em <code>ouvindo...</code>, porque o tráfego é unicast. Só o modo
+  monitor alcança a cifra. Para contrastar com um espião que tenta <em>ler</em> o comando e por isso falha, grave
+  <code>espiao_monitor_xiao</code> (seção 5.4).</li>
 </ol>
 
 <h3>Fechamento</h3>
@@ -523,10 +544,11 @@ mpremote connect &lt;porta-espiao&gt; fs cp micropython/espiao/espiao_cripto.py 
 <pre><code>arduino-cli core install esp32:esp32
 arduino-cli lib install M5Unified        # só para as variantes M5 (StickC, Capsule)
 
+arduino-cli upload -p &lt;porta-xiao&gt; --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao_term   # versões 2 e 3
 arduino-cli upload -p &lt;porta-xiao&gt; --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao
 arduino-cli upload -p &lt;porta-xiao&gt; --fqbn esp32:esp32:XIAO_ESP32C6 arduino/espiao_monitor_xiao_cif
 arduino-cli monitor -p &lt;porta-xiao&gt; -c baudrate=115200</code></pre>
-<p>As duas versões do XIAO usam a mesma placa e o mesmo FQBN. Para alternar, troque só a pasta. Se o upload
+<p>As versões do XIAO usam a mesma placa e o mesmo FQBN. Para alternar, troque só a pasta. Se o upload
 travar em <code>Connecting...</code>, segure BOOT, aperte RESET, solte BOOT e grave de novo. Outras placas:
 <code>esp32:esp32:m5stack_stickc_plus2</code> e <code>esp32:esp32:m5stack_capsule</code>.</p>
 

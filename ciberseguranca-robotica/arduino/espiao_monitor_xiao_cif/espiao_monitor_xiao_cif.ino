@@ -34,7 +34,7 @@ static const uint8_t CANAL = 1;               // mesmo canal de todas as placas
 
 // MAC do ROBO: o controle cifrado manda em unicast para ele (o filtro do sniffer
 // usa este MAC) e o replay vai para ele. Descubra com ferramentas/mostra_mac.py no robo.
-static uint8_t ROBO_MAC[6] = { 0x48, 0x27, 0xe2, 0xe3, 0xac, 0x78 };
+static uint8_t ROBO_MAC[6] = { 0xa0, 0xf2, 0x62, 0x87, 0xaf, 0x74 };
 
 // XIAO ESP32-C6: LED de usuario no GPIO15 (ativo em nivel BAIXO), BOOT no GPIO9.
 #ifndef LED_BUILTIN
@@ -71,11 +71,11 @@ static long total = 0;
 static const char* descr(const Cap& c) {
   if (c.len == 1) {
     switch (c.body[0]) {
-      case 'F': return "FRENTE";
-      case 'T': return "TRAS";
-      case 'E': return "ESQ";
-      case 'D': return "DIR";
-      case 'P': return "PARAR";
+      case 'F': return "FORWARD";
+      case 'T': return "BACK";
+      case 'E': return "LEFT";
+      case 'D': return "RIGHT";
+      case 'P': return "STOP";
     }
   }
   static char buf[24];
@@ -134,7 +134,7 @@ static void macStr(const uint8_t* m, char* out) {
 
 // ---------- Acoes ----------
 static void enviarReplay() {
-  if (hist_n == 0) { Serial.println("replay: nada capturado ainda"); return; }
+  if (hist_n == 0) { Serial.println("replay: nothing captured yet"); return; }
   const Cap& c = hist[sel];
   esp_err_t r = esp_now_send(ROBO_MAC, c.body, c.len);   // reenvia os MESMOS bytes
   Serial.printf("REPLAY [%d] %s -> %s\n", sel, descr(c), r == ESP_OK ? "ok" : "falhou");
@@ -144,7 +144,7 @@ static void enviarReplay() {
 static void moverSelecao() {
   if (hist_n == 0) return;
   sel = (sel - 1 + hist_n) % hist_n;          // anda para um frame ANTERIOR
-  Serial.printf("selecionado [%d] %s\n", sel, descr(hist[sel]));
+  Serial.printf("selected [%d] %s\n", sel, descr(hist[sel]));
   ledPisca(2, 150);
 }
 
@@ -177,9 +177,9 @@ void setup() {
 
   char mac[18]; macStr(ROBO_MAC, mac);
   Serial.println("========================================");
-  Serial.println("ESPIAO monitor (XIAO ESP32-C6)");
-  Serial.printf("Canal %d  destino replay %s\n", CANAL, mac);
-  Serial.println("BOOT: toque=replay do selecionado; segurar=frame anterior");
+  Serial.println("SPY monitor (XIAO ESP32-C6)");
+  Serial.printf("Channel %d  replay target %s\n", CANAL, mac);
+  Serial.println("BOOT: tap=replay selected; hold=previous frame");
   Serial.println("========================================");
   ledPisca(2, 150);
 }
@@ -203,7 +203,7 @@ void loop() {
     }
     sel = hist_n - 1;                         // selecao volta para o mais recente
     char mac[18]; macStr(c.src, mac);
-    Serial.printf("[%ld] capturou %s de %s\n", total, descr(c), mac);
+    Serial.printf("[%ld] captured %s from %s\n", total, descr(c), mac);
     ledPisca(1, 40);
   }
 

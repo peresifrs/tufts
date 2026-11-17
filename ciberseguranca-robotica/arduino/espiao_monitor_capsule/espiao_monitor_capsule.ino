@@ -29,7 +29,7 @@ static const uint8_t CANAL = 1;               // mesmo canal de todas as placas
 
 // MAC do ROBO: destino do unicast do controle e do replay deste espiao.
 // Descubra com: mpremote connect <porta-robo> run micropython/ferramentas/mostra_mac.py
-static uint8_t ROBO_MAC[6] = { 0x48, 0x27, 0xe2, 0xe3, 0xac, 0x78 };
+static uint8_t ROBO_MAC[6] = { 0xa0, 0xf2, 0x62, 0x87, 0xaf, 0x74 };
 
 // LED RGB onboard da Capsule. CONFIRME o pino (a M5Capsule usa GPIO21; se a cor
 // nao acender, teste outro pino ou veja o pinout do seu modelo).
@@ -58,11 +58,11 @@ static long total = 0;
 static const char* nomeComando(const Cap& c) {
   if (c.len == 1) {
     switch (c.body[0]) {
-      case 'F': return "FRENTE";
-      case 'T': return "TRAS";
-      case 'E': return "ESQ";
-      case 'D': return "DIR";
-      case 'P': return "PARAR";
+      case 'F': return "FORWARD";
+      case 'T': return "BACK";
+      case 'E': return "LEFT";
+      case 'D': return "RIGHT";
+      case 'P': return "STOP";
     }
   }
   return "?";
@@ -124,7 +124,7 @@ static void macStr(const uint8_t* m, char* out) {
 
 // ---------- Replay ----------
 static void enviarReplay() {
-  if (!tem_ultimo) { Serial.println("replay: nada capturado ainda"); return; }
+  if (!tem_ultimo) { Serial.println("replay: nothing captured yet"); return; }
   esp_err_t r = esp_now_send(ROBO_MAC, ultimo.body, ultimo.len);
   Serial.printf("REPLAY -> %s (%s)\n", nomeComando(ultimo), r == ESP_OK ? "ok" : "falhou");
   // Piscada branca para confirmar o replay, depois volta a cor do comando.
@@ -162,9 +162,9 @@ void setup() {
 
   char mac[18]; macStr(ROBO_MAC, mac);
   Serial.println("========================================");
-  Serial.println("ESPIAO monitor (Capsule, sem tela)");
-  Serial.printf("Canal %d  destino replay %s\n", CANAL, mac);
-  Serial.println("Botao = replay do ultimo capturado");
+  Serial.println("SPY monitor (Capsule, no screen)");
+  Serial.printf("Channel %d  replay target %s\n", CANAL, mac);
+  Serial.println("Button = replay last captured");
   Serial.println("========================================");
   ledCor(0, 2, 2);                            // ciano fraco = pronto/ouvindo
 }
@@ -179,7 +179,7 @@ void loop() {
     q_tail = (q_tail + 1) % QN;
     total++;
     char mac[18]; macStr(ultimo.src, mac);
-    Serial.printf("[%ld] capturou %s de %s\n", total, nomeComando(ultimo), mac);
+    Serial.printf("[%ld] captured %s from %s\n", total, nomeComando(ultimo), mac);
     ledComando(ultimo);
   }
 

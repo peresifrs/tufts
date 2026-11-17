@@ -24,7 +24,7 @@ CANAL = 1                 # mesmo canal de todas as placas
 
 # MAC do ROBO (destino do unicast). Descubra com ferramentas/mostra_mac.py.
 # Vem None de proposito: o programa avisa e para ate voce preencher.
-ROBO_MAC = b'\x48\x27\xe2\xe3\xac\x78'   # descoberto com ferramentas/mostra_mac.py
+ROBO_MAC = b'\xa0\xf2\x62\x87\xaf\x74'   # descoberto com ferramentas/mostra_mac.py
 
 # GPIO de cada botao na Breakout v2 (iguais ao controle.py).
 PINO_FRENTE = 4
@@ -38,10 +38,10 @@ PINO_LED = 21             # LED RGB (WS2812) do Stamp S3; None desliga o feedbac
 # ==========================================================
 
 if ROBO_MAC is None:
-    raise SystemExit("Preencha ROBO_MAC no topo do controle_unicast.py "
-                     "(use ferramentas/mostra_mac.py no robo para descobrir).")
+    raise SystemExit("Fill in ROBO_MAC at the top of controle_unicast.py "
+                     "(use ferramentas/mostra_mac.py on the robot to find it).")
 if PINO_FRENTE is None or PINO_TRAS is None:
-    raise SystemExit("Preencha PINO_FRENTE e PINO_TRAS no topo do controle_unicast.py.")
+    raise SystemExit("Fill in PINO_FRENTE and PINO_TRAS at the top of controle_unicast.py.")
 
 # ---------- Radio ESP-NOW ----------
 def mac_str(b):
@@ -59,11 +59,11 @@ e.active(True)
 e.add_peer(ROBO_MAC)          # unicast: precisa registrar o destino para enviar
 
 print("=" * 40)
-print("Papel : controle UNICAST (botoes)")
+print("Role  : UNICAST controller (buttons)")
 print("MAC   :", mac_str(sta.config('mac')))
-print("Destino:", mac_str(ROBO_MAC))
-print("Canal :", sta.config('channel'), "(esperado %d)" % CANAL)
-print("Botoes: FRENTE=GPIO%d  TRAS=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
+print("Dest  :", mac_str(ROBO_MAC))
+print("Chan  :", sta.config('channel'), "(expected %d)" % CANAL)
+print("Btns  : FWD=GPIO%d  BACK=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
 print("=" * 40)
 
 # ---------- Botoes ----------
@@ -102,10 +102,10 @@ def enviar(cmd):
     try:
         e.send(ROBO_MAC, cmd.encode())
     except OSError as erro:
-        print("falha ao enviar", cmd, erro)
+        print("send failed", cmd, erro)
         return
     seq += 1
-    print("[%d] enviado (unicast): %s" % (seq, cmd))
+    print("[%d] sent (unicast): %s" % (seq, cmd))
     led(cmd)
 
 def comando_atual():

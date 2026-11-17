@@ -36,8 +36,8 @@ PINO_LED = 21             # LED RGB (WS2812) do Stamp S3; None desliga o feedbac
 # ==========================================================
 
 if PINO_FRENTE is None or PINO_TRAS is None:
-    raise SystemExit("Preencha PINO_FRENTE e PINO_TRAS no topo do controle.py "
-                     "(use ferramentas/descobre_pinos.py para descobrir).")
+    raise SystemExit("Fill in PINO_FRENTE and PINO_TRAS at the top of controle.py "
+                     "(use ferramentas/descobre_pinos.py to find them).")
 
 # ---------- Radio ESP-NOW ----------
 def mac_str(b):
@@ -55,10 +55,10 @@ e.active(True)
 e.add_peer(BROADCAST)
 
 print("=" * 40)
-print("Papel : controle (botoes)")
+print("Role  : controller (buttons)")
 print("MAC   :", mac_str(sta.config('mac')))
-print("Canal :", sta.config('channel'), "(esperado %d)" % CANAL)
-print("Botoes: FRENTE=GPIO%d  TRAS=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
+print("Chan  :", sta.config('channel'), "(expected %d)" % CANAL)
+print("Btns  : FWD=GPIO%d  BACK=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
 print("=" * 40)
 
 # ---------- Botoes ----------
@@ -97,10 +97,10 @@ def enviar(cmd):
     try:
         e.send(BROADCAST, cmd.encode())
     except OSError as erro:
-        print("falha ao enviar", cmd, erro)
+        print("send failed", cmd, erro)
         return
     seq += 1
-    print("[%d] enviado: %s" % (seq, cmd))
+    print("[%d] sent: %s" % (seq, cmd))
     led(cmd)
 
 def comando_atual():

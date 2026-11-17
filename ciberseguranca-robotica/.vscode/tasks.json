@@ -7,6 +7,7 @@
       "options": [
         "arduino/espiao_monitor_xiao",
         "arduino/espiao_monitor_xiao_cif",
+        "arduino/espiao_monitor_xiao_term",
         "arduino/espiao_monitor_capsule",
         "arduino/espiao_monitor"
       ] },
@@ -20,6 +21,12 @@
       "options": [":main.py", ":/flash/main.py"] }
   ],
   "tasks": [
+    { "label": "Espião XIAO: terminal (captura e replay)",
+      "type": "shell",
+      "command": "P=$(mpremote connect list | awk '/303a:1001/{print $1; exit}'); P=${P:-/dev/cu.usbmodem3101}; echo \"porta: $P\"; arduino-cli monitor -p $P -c baudrate=115200",
+      "presentation": { "reveal": "always", "focus": true, "panel": "dedicated", "clear": true },
+      "problemMatcher": [] },
+
     { "label": "Listar portas",
       "type": "shell",
       "command": "mpremote connect list && arduino-cli board list",

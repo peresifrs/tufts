@@ -36,7 +36,7 @@ except ImportError:
 CANAL = 1                 # mesmo canal de todas as placas
 
 # MAC do ROBO (destino do unicast). Descubra com ferramentas/mostra_mac.py.
-ROBO_MAC = b'\x48\x27\xe2\xe3\xac\x78'
+ROBO_MAC = b'\xa0\xf2\x62\x87\xaf\x74'
 
 # CHAVE AES de 16 bytes. DEVE ser IDENTICA no robo_cripto.py.
 # (Chave fixa no codigo e didatico, nao seguro: qualquer um que leia o repo a tem.)
@@ -52,10 +52,10 @@ PINO_LED = 21             # LED RGB do Stamp S3; None desliga o feedback
 # ==========================================================
 
 if ROBO_MAC is None:
-    raise SystemExit("Preencha ROBO_MAC no topo do controle_cripto.py "
-                     "(use ferramentas/mostra_mac.py no robo para descobrir).")
+    raise SystemExit("Fill in ROBO_MAC at the top of controle_cripto.py "
+                     "(use ferramentas/mostra_mac.py on the robot to find it).")
 if len(CHAVE) != 16:
-    raise SystemExit("CHAVE precisa ter exatamente 16 bytes.")
+    raise SystemExit("CHAVE must be exactly 16 bytes.")
 
 # ---------- Cifra ----------
 def cifrar(cmd):
@@ -79,11 +79,11 @@ e.active(True)
 e.add_peer(ROBO_MAC)          # unicast: precisa registrar o destino para enviar
 
 print("=" * 40)
-print("Papel : controle CIFRADO UNICAST (botoes)")
+print("Role  : ENCRYPTED UNICAST controller (buttons)")
 print("MAC   :", mac_str(sta.config('mac')))
-print("Destino:", mac_str(ROBO_MAC))
-print("Canal :", sta.config('channel'), "(esperado %d)" % CANAL)
-print("Botoes: FRENTE=GPIO%d  TRAS=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
+print("Dest  :", mac_str(ROBO_MAC))
+print("Chan  :", sta.config('channel'), "(expected %d)" % CANAL)
+print("Btns  : FWD=GPIO%d  BACK=GPIO%d" % (PINO_FRENTE, PINO_TRAS))
 print("=" * 40)
 
 # ---------- Botoes ----------
@@ -122,10 +122,10 @@ def enviar(cmd):
     try:
         e.send(ROBO_MAC, cifrar(cmd))         # <-- manda a CIFRA, so para o robo
     except OSError as erro:
-        print("falha ao enviar", cmd, erro)
+        print("send failed", cmd, erro)
         return
     seq += 1
-    print("[%d] enviado (cifrado, unicast): %s" % (seq, cmd))
+    print("[%d] sent (encrypted, unicast): %s" % (seq, cmd))
     led(cmd)
 
 def comando_atual():

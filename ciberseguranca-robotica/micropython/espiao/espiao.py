@@ -1,4 +1,4 @@
-# espiao.py  (antigo ciberseg-lego/.../espiao_m5_replay.py - codigo inalterado)
+# espiao.py  (antigo ciberseg-lego/.../espiao_m5_replay.py; 2026-11: troca de canal no botao B)
 # Espiao (broadcast, texto claro) rodando num M5StickC PlusSE.
 # SEM terminal: a placa tem TELA
 # (mostra os comandos interceptados) e dois BOTOES (fazem o replay). Assim o
@@ -14,11 +14,13 @@
 #
 # CONTROLES (na propria placa, sem PC):
 #   Botao A (frente, GPIO37) -> REPLAY do item selecionado (o [>] na tela)
-#   Botao B (lateral, GPIO39)-> move a selecao pelo historico (o mais recente e o padrao)
+#   Botao B (lateral, GPIO39)-> toque curto: move a selecao pelo historico
+#                               SEGURAR (>= 0,8 s): troca de canal 1 -> 6 -> 11 -> 1
 #
-# CANAL: ao ligar, a placa mostra um MENU para escolher o canal do alvo
-#   (B = troca entre 1/6/11, A = inicia). Na corrida cada carro fica num canal
-#   diferente, entao o espiao so atrapalha um adversario por vez.
+# CORRIDA (uma equipe por canal 1/6/11): o espiao ataca os RIVAIS. Segure B ate achar
+# o canal onde aparecem os comandos deles. O canal fica gravado em canal.txt (vale
+# apos reiniciar). O historico NAO e apagado ao trocar: da para repetir num canal um
+# comando capturado em outro.
 
 import network
 import espnow
@@ -26,8 +28,16 @@ import time
 from machine import Pin
 from m5 import m5_display
 
-CANAIS = (1, 6, 11)       # canais da corrida (um por carro)
-CANAL = CANAIS[0]         # escolhido no menu da partida (ver escolher_canal)
+CANAL = 1                 # canal inicial (se nao houver canal.txt)
+CANAIS = (1, 6, 11)       # canais percorridos ao segurar o botao B
+SEGURAR_MS = 800          # tempo de botao B apertado para trocar de canal
+ARQ_CANAL = 'canal.txt'
+
+try:
+    with open(ARQ_CANAL) as f:
+        CANAL = int(f.read().strip())
+except Exception:
+    pass
 BROADCAST = b'\xff' * 6
 HIST_MAX = 8              # quantos comandos capturados a tela guarda
 
@@ -66,22 +76,23 @@ historico = []                # ultimos comandos capturados (texto)
 total = 0                     # quantos pacotes ja foram vistos
 sel = 0                       # indice selecionado no historico (0 = mais antigo guardado)
 msg_rodape = "A=replay B=sel"
+canal = CANAL
 rodape_cor = W
 
 def nome_comando(c):
     # Deixa o comando legivel na tela sem depender de a fonte ter acentos.
     return {
-        "F": "FRENTE", "T": "TRAS", "E": "ESQ",
-        "D": "DIR", "P": "PARAR",
+        "F": "FWD", "T": "BACK", "E": "LEFT",
+        "D": "RIGHT", "P": "STOP",
     }.get(c.upper(), c)
 
 def desenhar():
     display.fill(B)
-    display.draw_text_centered(2, 'ESPIAO', AMBAR, B, scale=2)
-    display.draw_text_centered(26, 'ch%d  cap:%d' % (CANAL, total), W, B)
+    display.draw_text_centered(2, 'SPY', AMBAR, B, scale=2)
+    display.draw_text_centered(26, 'cap:%d  ch %d' % (total, canal), W, B)
 
     if not historico:
-        display.draw_text_centered(90, 'ouvindo', W, B)
+        display.draw_text_centered(90, 'listening', W, B)
         display.draw_text_centered(112, '...', W, B)
     else:
         # Destaque: ULTIMO comando capturado, grande, visivel de longe.
@@ -124,33 +135,24 @@ def mover_selecao():
     msg_rodape = "A=replay B=sel"
     rodape_cor = W
 
-def escolher_canal():
-    # Menu na partida: B troca o canal (1/6/11), A confirma e inicia.
-    idx = 0
-    def menu():
-        display.fill(B)
-        display.draw_text_centered(2, 'ESPIAO', AMBAR, B, scale=2)
-        display.draw_text_centered(44, 'CANAL', W, B)
-        display.draw_text_centered(78, str(CANAIS[idx]), VERDE, B, scale=3)
-        display.draw_text_centered(150, 'B = troca', W, B)
-        display.draw_text_centered(172, 'A = iniciar', W, B)
-    menu()
-    la, lb = pressed(btn_a), pressed(btn_b)   # estado inicial: nao dispara botao preso
-    while True:
-        a, b = pressed(btn_a), pressed(btn_b)
-        if b and not lb:
-            idx = (idx + 1) % len(CANAIS)
-            menu()
-        if a and not la:
-            return CANAIS[idx]
-        la, lb = a, b
-        time.sleep_ms(15)
+def trocar_canal():
+    global canal, msg_rodape, rodape_cor
+    i = CANAIS.index(canal) if canal in CANAIS else -1
+    canal = CANAIS[(i + 1) % len(CANAIS)]
+    sta.config(channel=canal)
+    try:
+        with open(ARQ_CANAL, 'w') as f:
+            f.write(str(canal))
+    except Exception:
+        pass
+    msg_rodape = "CHANNEL %d" % canal
+    rodape_cor = AMBAR
 
 # ---------- Laco principal ----------
-CANAL = escolher_canal()
-sta.config(channel=CANAL)     # sintoniza no canal do alvo escolhido
 desenhar()
 last_a, last_b = pressed(btn_a), pressed(btn_b)
+b_desde = None            # quando o botao B foi apertado (None = solto)
+b_trocou = False          # ja trocou de canal neste aperto (nao move a selecao ao soltar)
 
 while True:
     mudou = False
@@ -171,9 +173,19 @@ while True:
     if a and not last_a:
         enviar_replay()
         mudou = True
+    agora = time.ticks_ms()
     if b and not last_b:
-        mover_selecao()
+        b_desde, b_trocou = agora, False
+    if b and b_desde is not None and not b_trocou \
+            and time.ticks_diff(agora, b_desde) >= SEGURAR_MS:
+        trocar_canal()                  # segurou: troca o canal (uma vez por aperto)
+        b_trocou = True
         mudou = True
+    if not b and last_b:
+        if not b_trocou:
+            mover_selecao()             # toque curto: move a selecao
+            mudou = True
+        b_desde = None
     last_a, last_b = a, b
 
     if mudou:

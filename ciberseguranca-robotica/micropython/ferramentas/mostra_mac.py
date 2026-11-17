@@ -11,6 +11,6 @@ sta = network.WLAN(network.STA_IF)
 sta.active(True)
 mac = sta.config('mac')
 
-print("MAC (humano):", ':'.join('%02x' % x for x in mac))
-print("Cole no controle_unicast.py:")
+print("MAC (human):", ':'.join('%02x' % x for x in mac))
+print("Paste into controle_unicast.py:")
 print("ROBO_MAC = b'" + ''.join('\\x%02x' % x for x in mac) + "'")

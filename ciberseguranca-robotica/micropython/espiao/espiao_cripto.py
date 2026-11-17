@@ -75,12 +75,12 @@ def hexcurto(b, n=4):
 
 def desenhar():
     display.fill(B)
-    display.draw_text_centered(2, 'ESPIAO', AMBAR, B, scale=2)
-    display.draw_text_centered(26, 'cifrado', W, B)
+    display.draw_text_centered(2, 'SPY', AMBAR, B, scale=2)
+    display.draw_text_centered(26, 'encrypted', W, B)
     display.draw_text_centered(40, 'cap: %d' % total, W, B)
 
     if not historico:
-        display.draw_text_centered(90, 'ouvindo', W, B)
+        display.draw_text_centered(90, 'listening', W, B)
         display.draw_text_centered(112, '...', W, B)
     else:
         # Ultima cifra, grande: bytes embaralhados, ilegiveis.
@@ -110,7 +110,7 @@ def enviar_replay():
         return
     cifra = historico[sel]
     e.send(BROADCAST, cifra)          # reenvia os MESMOS bytes: sem chave, so repetindo
-    msg_rodape = "REPLAY cifra"
+    msg_rodape = "REPLAY cipher"
     rodape_cor = VERDE
 
 def mover_selecao():

@@ -72,7 +72,7 @@ async def executar_comando(motor, comando):
 
     velocidades = CMDS.get(comando)
     if velocidades is None:
-        print("Comando desconhecido:", comando)
+        print("Unknown command:", comando)
         return
 
     esquerda, direita = velocidades
@@ -88,10 +88,10 @@ async def executar_comando(motor, comando):
 async def main():
     motor = LEGOEducationMotor(card_serial=CARD_SERIAL)
     try:
-        print("Conectando ao motor LEGO BLE, cartao", CARD_SERIAL)
+        print("Connecting to LEGO BLE motor, card", CARD_SERIAL)
         await motor.connect()
         print(
-            "ROBO CIFRADO pronto, canal {}, motor {}".format(
+            "ENCRYPTED ROBOT ready, channel {}, motor {}".format(
                 sta.config("channel"), motor.device_serial
             )
         )
@@ -101,7 +101,7 @@ async def main():
             if msg is not None:
                 comando = decifrar(msg)
                 if comando is None:
-                    print("Bloco invalido de", host)
+                    print("Invalid block from", host)
                 else:
                     await executar_comando(motor, comando)
 

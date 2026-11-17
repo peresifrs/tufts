@@ -30,7 +30,7 @@ static const uint8_t CANAL = 1;               // mesmo canal de todas as placas
 // MAC do ROBO: destino do unicast do controle e do replay deste espiao.
 // Descubra com: mpremote connect <porta-robo> run micropython/ferramentas/mostra_mac.py
 // Preencha os 6 bytes abaixo (troque os zeros):
-static uint8_t ROBO_MAC[6] = { 0x48, 0x27, 0xe2, 0xe3, 0xac, 0x78 };
+static uint8_t ROBO_MAC[6] = { 0xa0, 0xf2, 0x62, 0x87, 0xaf, 0x74 };
 
 #define HIST_MAX 8                            // quantos comandos a tela guarda
 #define BODY_MAX 32                           // bytes de payload que guardamos por item
@@ -61,11 +61,11 @@ static uint16_t rodape_cor;
 static String nomeComando(const Cap& c) {
   if (c.len == 1) {
     switch (c.body[0]) {
-      case 'F': return "FRENTE";
-      case 'T': return "TRAS";
-      case 'E': return "ESQ";
-      case 'D': return "DIR";
-      case 'P': return "PARAR";
+      case 'F': return "FORWARD";
+      case 'T': return "BACK";
+      case 'E': return "LEFT";
+      case 'D': return "RIGHT";
+      case 'P': return "STOP";
     }
   }
   // Payload generico: mostra como texto imprimivel ou hex.
@@ -131,14 +131,14 @@ static void desenhar() {
   d.setTextColor(TFT_ORANGE, TFT_BLACK);
   d.setTextDatum(top_center);
   d.setTextSize(2);
-  d.drawString("ESPIAO", d.width() / 2, 2);
+  d.drawString("SPY", d.width() / 2, 2);
   d.setTextSize(1);
   d.setTextColor(TFT_WHITE, TFT_BLACK);
   d.drawString("monitor", d.width() / 2, 20);
   d.drawString("cap: " + String(total), d.width() / 2, 32);
 
   if (hist_n == 0) {
-    d.drawString("ouvindo...", d.width() / 2, 90);
+    d.drawString("listening...", d.width() / 2, 90);
   } else {
     // Ultimo comando, grande.
     d.setTextSize(2);

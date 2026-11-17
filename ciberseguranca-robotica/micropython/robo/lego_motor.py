@@ -43,19 +43,19 @@ RESPONSE_TIMEOUT_MS = 5000
 
 def _validate_int(value, name):
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError("{} deve ser um inteiro".format(name))
+        raise TypeError("{} must be an integer".format(name))
 
 
 def _validate_speed(speed):
     _validate_int(speed, "speed")
     if speed < -100 or speed > 100:
-        raise ValueError("speed deve estar entre -100 e 100")
+        raise ValueError("speed must be between -100 and 100")
 
 
 def _validate_direction(direction):
     _validate_int(direction, "direction")
     if direction not in (0, 1):
-        raise ValueError("direction deve ser 0 (horario) ou 1 (anti-horario)")
+        raise ValueError("direction must be 0 (clockwise) or 1 (counter-clockwise)")
 
 
 class LEGOEducationMotor:
@@ -64,11 +64,11 @@ class LEGOEducationMotor:
     def __init__(self, card_serial=CARD_SERIAL, scan_ms=SCAN_DURATION_MS):
         _validate_int(scan_ms, "scan_ms")
         if scan_ms <= 0:
-            raise ValueError("scan_ms deve ser maior que zero")
+            raise ValueError("scan_ms must be greater than zero")
         if card_serial is not None:
             card_serial_value = int(str(card_serial))
             if card_serial_value < 0 or card_serial_value > 9999:
-                raise ValueError("card_serial deve estar entre 0000 e 9999")
+                raise ValueError("card_serial must be between 0000 and 9999")
         self.card_serial = card_serial
         self.scan_ms = scan_ms
         self.connection = None
@@ -113,8 +113,8 @@ class LEGOEducationMotor:
                     return result.device, product_id, serial
 
         raise OSError(
-            "Nenhum motor LEGO Education compatível foi encontrado "
-            "para o Connection Card {!r}".format(self.card_serial)
+            "No compatible LEGO Education motor was found "
+            "for Connection Card {!r}".format(self.card_serial)
         )
 
     async def connect(self):
@@ -129,22 +129,22 @@ class LEGOEducationMotor:
             self.connection = await device.connect(timeout_ms=10000)
             service = await self.connection.service(SERVICE_UUID)
             if service is None:
-                raise OSError("Serviço BLE LEGO FD02 não encontrado")
+                raise OSError("LEGO BLE service FD02 not found")
 
             self.write_characteristic = await service.characteristic(WRITE_UUID)
             self.notify_characteristic = await service.characteristic(NOTIFY_UUID)
             if self.write_characteristic is None or self.notify_characteristic is None:
-                raise OSError("Características BLE de escrita/notificação não encontradas")
+                raise OSError("BLE write/notify characteristics not found")
 
             await self.notify_characteristic.subscribe(notify=True)
             info = await self._rpc(bytes((INFO_REQUEST,)), INFO_RESPONSE)
             if len(info) < 17:
-                raise OSError("Resposta de identificação LEGO incompleta")
+                raise OSError("Incomplete LEGO identification response")
 
             reported_product = struct.unpack_from("<H", info, 15)[0]
             if reported_product != self.product_id:
                 raise OSError(
-                    "Produto anunciado e produto informado pelo motor não coincidem"
+                    "Advertised product and motor-reported product do not match"
                 )
         except Exception:
             connection = self.connection
@@ -153,12 +153,12 @@ class LEGOEducationMotor:
                 try:
                     await connection.disconnect()
                 except Exception as cleanup_error:
-                    print("Falha ao fechar BLE após erro: {}".format(cleanup_error))
+                    print("Failed to close BLE after error: {}".format(cleanup_error))
             raise
 
     async def _rpc(self, packet, expected_response, motor_mask=None):
         if not self.connected or self.write_characteristic is None:
-            raise OSError("Motor não está conectado")
+            raise OSError("Motor is not connected")
 
         await self.write_characteristic.write(packet, response=True)
         while True:
@@ -170,17 +170,17 @@ class LEGOEducationMotor:
             message_id = response[0]
             if message_id == ERROR_REPORT_RESPONSE:
                 raise OSError(
-                    "Motor LEGO reportou erro RPC: {}".format(response.hex())
+                    "LEGO motor reported RPC error: {}".format(response.hex())
                 )
             if message_id != expected_response:
                 continue
 
             if motor_mask is not None:
                 if len(response) < 3 or response[1] != motor_mask:
-                    raise OSError("Resposta RPC inválida para a saída do motor")
+                    raise OSError("Invalid RPC response for motor output")
                 if response[2] != 0:
                     raise OSError(
-                        "Comando RPC recusado pelo motor (status {})".format(
+                        "RPC command rejected by motor (status {})".format(
                             response[2]
                         )
                     )
@@ -190,13 +190,13 @@ class LEGOEducationMotor:
         _validate_int(motor, "motor")
         if self.product_id == PRODUCT_SINGLE_MOTOR:
             if motor != 0:
-                raise ValueError("Single Motor aceita somente motor=0")
+                raise ValueError("Single Motor accepts only motor=0")
             return 1
         if self.product_id == PRODUCT_DOUBLE_MOTOR:
             if motor not in (0, 1):
-                raise ValueError("Double Motor aceita motor=0 ou motor=1")
+                raise ValueError("Double Motor accepts motor=0 or motor=1")
             return 1 << motor
-        raise OSError("Produto LEGO desconhecido; chame connect() primeiro")
+        raise OSError("Unknown LEGO product; call connect() first")
 
     async def run(self, speed=25, direction=0, motor=0):
         """Inicia rotação contínua; chame stop() ou disconnect() para parar."""
@@ -252,7 +252,7 @@ class LEGOEducationMotor:
         """Gira por time_ms milissegundos e aguarda o término."""
         _validate_int(time_ms, "time_ms")
         if time_ms < 0 or time_ms > 0xFFFFFFFF:
-            raise ValueError("time_ms deve estar entre 0 e 4294967295")
+            raise ValueError("time_ms must be between 0 and 4294967295")
         _validate_speed(speed)
         _validate_direction(direction)
         motor_mask = self._motor_mask(motor)
