@@ -27,7 +27,13 @@ NFC reader); the robot drives the LEGO motor over BLE. The system runs in three 
 controller and the robot** (only this pair switches; the spies do not). Two attacker devices
 listen in: a **broadcast spy on an M5**, which works in broadcast and goes blind at unicast, and
 a **monitor-mode spy on a XIAO ESP32-C6**, which captures unicast and encrypted traffic and is
-driven from the browser (see the activity site in [docs/race/](docs/race/)).
+driven from the browser.
+
+The activity set opens with a **car race**: three LEGO cars (Science/AI kit motors), each on its
+own channel (**1, 6 and 11**), with teams of two engineers and one attacker. Engineers build and
+drive the car; the attacker learns the spy nodes and can jam only one rival at a time (one channel
+at a time). Co-designed with the CEEO as the fast entry activity — it is the site in
+[docs/race/](docs/race/).
 
 > **Migration status.** The flashing steps below still describe the original M5-board prototype
 > (Stamp S3 controller, Capsule robot, StickC spy) now being ported to the wand hardware; the
