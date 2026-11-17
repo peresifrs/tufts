@@ -1,29 +1,45 @@
 # ciberseg-esp32
 
 Cybersecurity with robotics for basic education (IFRS/POALab + Tufts/CEEO).
-Three ESP32 boards talk over **ESP-NOW in broadcast and clear text** — deliberately
-insecure — and a LEGO Education motor is the "robot". **Nothing depends on a computer**:
-each board runs on its own on a battery/power bank. The PC is only used to flash.
+ESP32 boards talk over **ESP-NOW** and a LEGO Education motor is the "robot".
+**Nothing depends on a computer**: each board runs on its own on a battery/power bank;
+the PC is only used to flash.
 
 ```
- [CONTROLLER]  --ESP-NOW broadcast-->  [ROBOT]  --BLE-->  [LEGO motor]
-  Stamp S3           "F" / "T" / "P"    Capsule
-  2 buttons                 |
-                            v  (everyone hears)
-                        [SPY]  M5StickC PlusSE with a screen
-                        sees the commands and REPLAYS -> the robot obeys
+ [CONTROLLER wand]  --ESP-NOW-->  [ROBOT wand]  --BLE-->  [LEGO motor]
+  ESP32-C6 + NFC      F / T / P     ESP32-C6 + NFC
+  button                   |        (the same NFC card
+                           |         sets the robot's mode)
+                           v
+             [SPY]  M5 (broadcast)  ·  XIAO ESP32-C6 (monitor: unicast + encrypted)
+             captures the commands and REPLAYS -> the robot obeys
 ```
 
-**The lesson:** the spy **reads** everything (confidentiality broken) and, by repeating a
+**The lesson:** the spy **reads** the traffic (confidentiality broken) and, by repeating a
 captured command, the robot **obeys the impostor** (authenticity broken) — it has no way
 to know who sent it.
+
+### Architecture (Nov 2026 — CEEO wand platform)
+
+The controller and the robot both run on the Tufts CEEO **"wand"** hardware (ESP32-C6 with an
+NFC reader); the robot drives the LEGO motor over BLE. The system runs in three security modes:
+**open broadcast → addressed unicast → AES-encrypted**. An **NFC card switches the mode on the
+controller and the robot** (only this pair switches; the spies do not). Two attacker devices
+listen in: a **broadcast spy on an M5**, which works in broadcast and goes blind at unicast, and
+a **monitor-mode spy on a XIAO ESP32-C6**, which captures unicast and encrypted traffic and is
+driven from the browser (see the activity site in [docs/race/](docs/race/)).
+
+> **Migration status.** The flashing steps below still describe the original M5-board prototype
+> (Stamp S3 controller, Capsule robot, StickC spy) now being ported to the wand hardware; the
+> MicroPython is the same on both. The **NFC mode-switch between controller and robot** is the
+> remaining integration step.
 
 > **Full study guide** (concepts, the three models, the spy's modes, commented code
 > and lesson plan): [docs/guia-de-estudo-ciberseg-esp32.pdf](docs/guia-de-estudo-ciberseg-esp32.pdf).
 > The source is [docs/guia-de-estudo.html](docs/guia-de-estudo.html). To regenerate the PDF after editing:
 > `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --no-pdf-header-footer --print-to-pdf=docs/guia-de-estudo-ciberseg-esp32.pdf docs/guia-de-estudo.html`
 
-## The three boards
+## The boards flashed today (prototype being migrated to the wand)
 
 | Node | Board | Folder | What it does |
 |------|-------|--------|--------------|
